@@ -1,5 +1,4 @@
-import { getRepository } from 'typeorm';
-import { Practice, User, TopicProgress } from '../models';
+import { User } from '../models';
 
 export class AnalyticsService {
   static async getUserAnalytics(userId) {

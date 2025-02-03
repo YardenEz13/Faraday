@@ -1,5 +1,4 @@
-import { getRepository } from 'typeorm';
-import { User, TopicProgress, Practice } from '../models';
+import { User } from '../models';
 
 export class AdaptiveLearningService {
   static async updateUserProgress(userId, topic, isCorrect, hintsUsed) {

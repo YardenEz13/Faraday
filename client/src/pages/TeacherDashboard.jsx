@@ -2,37 +2,153 @@ import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { getTeacherDashboard, deleteAssignment } from "../services/api";
 import { Button } from "../components/ui/button";
-import { Card } from "../components/ui/card";
+import { Card, CardHeader, CardTitle, CardContent } from "../components/ui/card";
 import { toast } from "react-hot-toast";
-import { Users, Trash2, GraduationCap, BookOpen } from "lucide-react";
+import { Users, Trash2, GraduationCap, BookOpen, Brain, CheckCircle, Plus } from "lucide-react";
 import StudentSearch from '../components/StudentSearch';
+import { useTranslation } from "react-i18next";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { motion, AnimatePresence } from "framer-motion";
+
+const container = {
+  hidden: { opacity: 0 },
+  show: {
+    opacity: 1,
+    transition: {
+      staggerChildren: 0.1
+    }
+  }
+};
+
+const item = {
+  hidden: { opacity: 0, y: 20 },
+  show: { opacity: 1, y: 0 }
+};
+
+const statCard = {
+  hidden: { opacity: 0, scale: 0.8 },
+  show: { 
+    opacity: 1, 
+    scale: 1,
+    transition: { type: "spring", stiffness: 100 }
+  }
+};
+
+const cardHoverAnimation = {
+  rest: { scale: 1, y: 0 },
+  hover: { 
+    scale: 1.02,
+    y: -5,
+    transition: {
+      type: "spring",
+      stiffness: 400,
+      damping: 10
+    }
+  }
+};
+
+const shimmerAnimation = {
+  initial: {
+    backgroundPosition: "-200% 0",
+  },
+  animate: {
+    backgroundPosition: "200% 0",
+    transition: {
+      repeat: Infinity,
+      duration: 2,
+    },
+  },
+};
 
 export default function TeacherDashboard() {
-  const [students, setStudents] = useState([]);
+  const [dashboardData, setDashboardData] = useState({
+    students: [],
+    stats: {
+      totalStudents: 0,
+      totalAssignments: 0,
+      averageMathLevel: 0,
+      completedAssignments: 0
+    }
+  });
   const [loading, setLoading] = useState(true);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [isAddingStudents, setIsAddingStudents] = useState(false);
+  const { t, i18n } = useTranslation();
+  const isRTL = i18n.language === 'he';
 
   useEffect(() => {
     fetchDashboard();
+  }, [refreshTrigger]);
+
+  // Add automatic refresh every minute
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setRefreshTrigger(prev => prev + 1);
+    }, 60000); // 60 seconds
+
+    return () => clearInterval(interval);
+  }, []);
+
+  // Add focus event listener to refresh data when returning to the page
+  useEffect(() => {
+    const handleFocus = () => {
+      setRefreshTrigger(prev => prev + 1);
+    };
+
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
   }, []);
 
   const fetchDashboard = async () => {
     try {
-      const response = await getTeacherDashboard();
-      console.log('Teacher dashboard response:', response.data);
+      const students = await getTeacherDashboard();
+      console.log('Teacher dashboard response:', students);
       
-      if (Array.isArray(response.data)) {
-        setStudents(response.data);
+      if (Array.isArray(students)) {
+        const totalStudents = students.length;
+        const totalAssignments = students.reduce((sum, student) => 
+          sum + student.stats.totalAssignments, 0);
+        const completedAssignments = students.reduce((sum, student) => 
+          sum + student.stats.completedAssignments, 0);
+        const averageMathLevel = students.length > 0 
+          ? students.reduce((sum, student) => sum + (student.mathLevel || 1), 0) / students.length 
+          : 0;
+
+        setDashboardData({
+          students,
+          stats: {
+            totalStudents,
+            totalAssignments,
+            averageMathLevel: Math.round(averageMathLevel * 10) / 10,
+            completedAssignments
+          }
+        });
       } else {
-        console.error('Unexpected data format:', response.data);
-        setStudents([]);
+        console.error('Unexpected data format:', students);
+        setDashboardData({
+          students: [],
+          stats: {
+            totalStudents: 0,
+            totalAssignments: 0,
+            averageMathLevel: 0,
+            completedAssignments: 0
+          }
+        });
       }
       
       setLoading(false);
     } catch (error) {
       console.error('Error fetching dashboard:', error);
       toast.error('Error loading dashboard');
-      setStudents([]);
+      setDashboardData({
+        students: [],
+        stats: {
+          totalStudents: 0,
+          totalAssignments: 0,
+          averageMathLevel: 0,
+          completedAssignments: 0
+        }
+      });
       setLoading(false);
     }
   };
@@ -48,33 +164,40 @@ export default function TeacherDashboard() {
     }
   };
 
-  const handleStudentAdded = () => {
-    // Trigger a refresh of the dashboard data
-    setRefreshTrigger(prev => prev + 1);
+  const handleStudentAdded = async () => {
+    await fetchDashboard();
+    setIsAddingStudents(false);
   };
 
   if (loading) {
-    return <div className="flex items-center justify-center min-h-screen">Loading...</div>;
+    return (
+      <div className="flex items-center justify-center min-h-[calc(100vh-4rem)]">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      </div>
+    );
   }
 
-  if (!Array.isArray(students) || students.length === 0) {
+  if (!dashboardData.students || dashboardData.students.length === 0) {
     return (
-      <div className="container mx-auto p-6">
-        <div className="flex justify-between items-center mb-6">
-          <div className="flex items-center gap-2">
-            <Users className="w-8 h-8 text-primary" />
-            <h1 className="text-2xl font-bold">My Students</h1>
+      <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6">
+        <div className={`flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 ${isRTL ? 'sm:flex-row-reverse' : ''}`}>
+          <div className={`flex items-center gap-2 ${isRTL ? 'flex-row-reverse' : ''}`}>
+            <Users className="w-6 h-6 sm:w-8 sm:h-8 text-primary shrink-0" />
+            <h1 className={`text-lg sm:text-2xl font-bold text-foreground ${isRTL ? 'font-yarden text-right' : 'font-inter text-left'}`}>
+              {t('students.title')}
+            </h1>
           </div>
         </div>
         
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
           <div className="lg:col-span-2">
-            <Card className="p-6 text-center border-primary/20 dark:border-primary/20">
-              <p className="text-muted-foreground mb-4">No students found. Add new students to get started.</p>
+            <Card className="p-4 sm:p-6 text-center border-primary/20">
+              <p className={`text-sm sm:text-base text-muted-foreground ${isRTL ? 'text-right' : 'text-left'}`}>
+                {t('noAssignmentsDesc')}
+              </p>
             </Card>
           </div>
           
-          {/* Student search sidebar */}
           <div className="lg:col-span-1">
             <StudentSearch onStudentAdded={handleStudentAdded} />
           </div>
@@ -83,142 +206,248 @@ export default function TeacherDashboard() {
     );
   }
 
-  // Calculate overall statistics
-  const totalAssignments = students.reduce((sum, student) => sum + (student.assignments?.length || 0), 0);
-  const completedAssignments = students.reduce((sum, student) => 
-    sum + (student.assignments?.filter(a => a.isCompleted)?.length || 0), 0);
-  const averageLevel = students.reduce((sum, student) => sum + (student.level || 1), 0) / students.length;
-
   return (
-    <div className="container mx-auto p-6">
-      <div className="flex justify-between items-center mb-6">
-        <div className="flex items-center gap-2">
-          <Users className="w-8 h-8 text-primary" />
-          <h1 className="text-2xl font-bold">My Students</h1>
+    <motion.div 
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      className={`w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 ${isRTL ? 'font-yarden' : 'font-inter'}`} 
+      dir={isRTL ? 'rtl' : 'ltr'}
+    >
+      <motion.div 
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="flex items-center justify-between mb-8"
+      >
+        <div className="flex items-center gap-4">
+          <motion.div
+            whileHover={{ scale: 1.1, rotate: 360 }}
+            transition={{ type: "spring", stiffness: 200, damping: 10 }}
+            className="p-3 rounded-2xl bg-primary/10"
+          >
+            <Users className="w-8 h-8 text-primary" />
+          </motion.div>
+          <div>
+            <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-emerald-500 bg-clip-text text-transparent">
+              {t('dashboard.title')}
+            </h1>
+            <p className="text-muted-foreground">
+              {t('dashboard.description')}
+            </p>
+          </div>
         </div>
-        <Button asChild>
-          <Link to="/students/add">Add New Students</Link>
-        </Button>
-      </div>
+      </motion.div>
 
       {/* Statistics Cards */}
-      <div className="grid gap-4 md:grid-cols-3 mb-6">
-        <Card className="p-4 border-primary/20 dark:border-primary/20">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-primary/10 dark:bg-primary/20 rounded-lg">
-              <Users className="w-5 h-5 text-primary" />
+      <motion.div 
+        variants={container}
+        initial="hidden"
+        animate="show"
+        className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-8"
+      >
+        <motion.div
+          variants={item}
+          whileHover={{ scale: 1.02 }}
+          className="group"
+        >
+          <Card className="p-4 border-primary/20 bg-gradient-to-br from-background to-muted/50 hover:shadow-lg transition-shadow duration-200">
+            <div className={`flex items-center gap-3 ${isRTL ? 'flex-row-reverse' : ''}`}>
+              <div className="p-2 bg-primary/10 rounded-lg shrink-0">
+                <Users className="w-5 h-5 text-primary" />
+              </div>
+              <div className={`${isRTL ? 'font-yarden text-right' : 'font-inter text-left'}`}>
+                <p className="text-sm text-muted-foreground">{t('dashboard.totalStudents')}</p>
+                <p className="text-xl sm:text-2xl font-semibold">{dashboardData.stats.totalStudents}</p>
+              </div>
             </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Total Students</p>
-              <p className="text-2xl font-semibold">{students.length}</p>
-            </div>
-          </div>
-        </Card>
-        
-        <Card className="p-4 border-primary/20 dark:border-primary/20">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-primary/10 dark:bg-primary/20 rounded-lg">
-              <GraduationCap className="w-5 h-5 text-primary" />
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Average Level</p>
-              <p className="text-2xl font-semibold">{averageLevel.toFixed(1)}</p>
-            </div>
-          </div>
-        </Card>
-        
-        <Card className="p-4 border-primary/20 dark:border-primary/20">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-primary/10 dark:bg-primary/20 rounded-lg">
-              <BookOpen className="w-5 h-5 text-primary" />
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Assignments Completed</p>
-              <p className="text-2xl font-semibold">
-                <span className="text-green-600 dark:text-green-400">{completedAssignments}</span>
-                {' / '}
-                {totalAssignments}
-              </p>
-            </div>
-          </div>
-        </Card>
-      </div>
+          </Card>
+        </motion.div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <motion.div
+          variants={item}
+          whileHover={{ scale: 1.02 }}
+          className="group"
+        >
+          <Card className="p-4 border-primary/20 bg-gradient-to-br from-background to-muted/50 hover:shadow-lg transition-shadow duration-200">
+            <div className={`flex items-center gap-3 ${isRTL ? 'flex-row-reverse' : ''}`}>
+              <div className="p-2 bg-primary/10 rounded-lg shrink-0">
+                <Brain className="w-5 h-5 text-primary" />
+              </div>
+              <div className={`${isRTL ? 'font-yarden text-right' : 'font-inter text-left'}`}>
+                <p className="text-sm text-muted-foreground">{t('dashboard.averageMathLevel')}</p>
+                <p className="text-xl sm:text-2xl font-semibold">{dashboardData.stats.averageMathLevel.toFixed(1)}</p>
+              </div>
+            </div>
+          </Card>
+        </motion.div>
+
+        <motion.div
+          variants={item}
+          whileHover={{ scale: 1.02 }}
+          className="group"
+        >
+          <Card className="p-4 border-primary/20 bg-gradient-to-br from-background to-muted/50 hover:shadow-lg transition-shadow duration-200">
+            <div className={`flex items-center gap-3 ${isRTL ? 'flex-row-reverse' : ''}`}>
+              <div className="p-2 bg-primary/10 rounded-lg shrink-0">
+                <CheckCircle className="w-5 h-5 text-primary" />
+              </div>
+              <div className={`${isRTL ? 'font-yarden text-right' : 'font-inter text-left'}`}>
+                <p className="text-sm text-muted-foreground">{t('dashboard.assignmentsCompleted')}</p>
+                <p className="text-xl sm:text-2xl font-semibold">
+                  <span className="text-green-600 dark:text-green-400">{dashboardData.stats.completedAssignments}</span>
+                  {' / '}
+                  {dashboardData.stats.totalAssignments}
+                </p>
+              </div>
+            </div>
+          </Card>
+        </motion.div>
+      </motion.div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
         {/* Main content - student cards */}
-        <div className="lg:col-span-2 space-y-6">
-          {students.map((student) => (
-            <Card key={student.id || Math.random()} className="p-6 border-primary/20 dark:border-primary/20">
-              <div className="flex justify-between items-start mb-4">
-                <div>
-                  <h2 className="text-xl font-semibold">{student.username || 'Student'}</h2>
-                  <p className="text-muted-foreground">{student.email}</p>
-                </div>
-                <Button 
-                  variant="outline" 
-                  asChild
-                  className="hover:bg-primary/10 hover:text-primary transition-colors border-primary/20"
-                >
-                  <Link to={`/assignment/create/${student.id}`}>
-                    Assign Homework
-                  </Link>
-                </Button>
-              </div>
-
-              <div className="flex items-center gap-4 mb-4">
-                <div className="bg-primary/10 dark:bg-primary/20 px-3 py-1 rounded-full">
-                  <span className="text-primary">Level {student.level || 1}</span>
-                </div>
-                <div className="bg-primary/10 dark:bg-primary/20 px-3 py-1 rounded-full">
-                  <span className="text-primary">Progress: {student.progress || 0}%</span>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <h3 className="font-medium">Recent Assignments</h3>
-                {Array.isArray(student.assignments) && student.assignments.length > 0 ? (
-                  <div className="space-y-2">
-                    {student.assignments.map((assignment) => (
-                      <div key={assignment.id || Math.random()} className="flex justify-between items-center p-3 bg-muted/50 hover:bg-muted/70 rounded-lg transition-colors">
-                        <div>
-                          <div className="font-medium">{assignment.title}</div>
-                          <div className="text-sm text-muted-foreground">
-                            Due: {assignment.dueDate ? new Date(assignment.dueDate).toLocaleDateString() : 'Invalid Date'}
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <div className="text-sm">
-                            {assignment.isCompleted ? (
-                              <span className="text-green-600 dark:text-green-400">Completed</span>
-                            ) : (
-                              <span className="text-yellow-600 dark:text-yellow-400">Pending</span>
-                            )}
-                          </div>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="hover:bg-destructive/10 hover:text-destructive"
-                            onClick={() => handleDeleteAssignment(assignment.id)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </div>
-                    ))}
+        <motion.div 
+          variants={container}
+          initial="hidden"
+          animate="show"
+          className="lg:col-span-2 space-y-4 sm:space-y-6"
+        >
+          <AnimatePresence mode="popLayout">
+            {dashboardData.students.map((student) => (
+              <motion.div
+                key={student._id}
+                variants={item}
+                layout
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+              >
+                <Card className="p-4 sm:p-6 border-primary/20 bg-gradient-to-br from-background to-muted/50 hover:shadow-lg transition-all duration-200">
+                  <div className={`flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4 ${isRTL ? 'sm:flex-row-reverse' : ''}`}>
+                    <div className={`${isRTL ? 'font-yarden text-right w-full sm:w-auto' : 'font-inter text-left w-full sm:w-auto'}`}>
+                      <h2 className="text-base sm:text-xl font-semibold">{student.username}</h2>
+                      <p className="text-sm text-muted-foreground">{student.email}</p>
+                    </div>
+                    <Button 
+                      variant="outline" 
+                      asChild
+                      className={`w-full sm:w-auto group hover:bg-primary hover:text-primary-foreground transition-all duration-200 ${isRTL ? 'font-yarden' : 'font-inter'}`}
+                    >
+                      <Link to={`/assignment/create/${student._id}`} className="flex items-center gap-2">
+                        <BookOpen className="w-4 h-4 group-hover:scale-110 transition-transform duration-200" />
+                        {t('assignments.assignHomework')}
+                      </Link>
+                    </Button>
                   </div>
-                ) : (
-                  <p className="text-muted-foreground text-sm">No recent assignments</p>
-                )}
-              </div>
-            </Card>
-          ))}
-        </div>
+
+                  <div className={`flex flex-wrap gap-2 ${isRTL ? 'justify-end' : 'justify-start'}`}>
+                    <div className="bg-primary/10 px-3 py-1 rounded-full">
+                      <span className={`text-sm text-primary ${isRTL ? 'font-yarden' : 'font-inter'}`}>
+                        {t('students.mathLevel')} {student.mathLevel?.toFixed(1) || '1.0'}
+                      </span>
+                    </div>
+                    <div className="bg-primary/10 px-3 py-1 rounded-full">
+                      <span className={`text-sm text-primary ${isRTL ? 'font-yarden' : 'font-inter'}`}>
+                        {t('students.progress')}: {student.stats.progress || 0}%
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2 mt-4">
+                    <h3 className={`text-sm font-medium ${isRTL ? 'text-right' : 'text-left'}`}>
+                      {t('dashboard.recentAssignments')}
+                    </h3>
+                    <AnimatePresence mode="popLayout">
+                      {Array.isArray(student.assignments) && student.assignments.length > 0 ? (
+                        <motion.div 
+                          variants={container}
+                          initial="hidden"
+                          animate="show"
+                          className="space-y-2"
+                        >
+                          {student.assignments.map((assignment, index) => (
+                            <motion.div
+                              key={assignment._id || `${student._id}-assignment-${index}`}
+                              variants={item}
+                              className={`flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 p-3 bg-muted/50 hover:bg-muted/70 rounded-lg transition-all duration-200 ${isRTL ? 'sm:flex-row-reverse' : ''}`}
+                            >
+                              <Link 
+                                to={`/assignment/${assignment._id}`}
+                                className="flex-1 w-full group"
+                              >
+                                <div className={isRTL ? 'text-right' : 'text-left'}>
+                                  <div className="text-sm font-medium group-hover:text-primary transition-colors">
+                                    {typeof assignment.title === 'object' ? 
+                                      (assignment.title[i18n.language] || assignment.title.en || assignment.title.he) : 
+                                      (assignment.title || t('untitled'))}
+                                  </div>
+                                  <div className="text-xs text-muted-foreground">
+                                    {t('dueDate')}: {assignment.dueDate ? new Date(assignment.dueDate).toLocaleDateString() : 'Invalid Date'}
+                                  </div>
+                                </div>
+                                <div className={`text-xs mt-1 ${(assignment.status === 'submitted' || assignment.status === 'graded') ? 'text-green-600 dark:text-green-400' : 'text-yellow-600 dark:text-yellow-400'}`}>
+                                  {(assignment.status === 'submitted' || assignment.status === 'graded') ? t('completed') : t('pending')}
+                                </div>
+                              </Link>
+                              {assignment._id && (
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="hover:bg-destructive/10 hover:text-destructive shrink-0 group"
+                                  onClick={() => handleDeleteAssignment(assignment._id)}
+                                >
+                                  <Trash2 className="h-4 w-4 group-hover:scale-110 transition-transform duration-200" />
+                                </Button>
+                              )}
+                            </motion.div>
+                          ))}
+                        </motion.div>
+                      ) : (
+                        <motion.p 
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          className={`text-sm text-muted-foreground ${isRTL ? 'text-right' : 'text-left'}`}
+                        >
+                          {t('noRecentAssignments')}
+                        </motion.p>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                </Card>
+              </motion.div>
+            ))}
+          </AnimatePresence>
+        </motion.div>
 
         {/* Student search sidebar */}
         <div className="lg:col-span-1">
           <StudentSearch onStudentAdded={handleStudentAdded} />
         </div>
       </div>
-    </div>
+
+      {/* Dialog for adding students */}
+      <AnimatePresence>
+        {isAddingStudents && (
+          <Dialog open={isAddingStudents} onOpenChange={setIsAddingStudents}>
+            <DialogContent className="sm:max-w-[425px]">
+              <DialogHeader>
+                <DialogTitle>{t('students.assignToTeacher')}</DialogTitle>
+              </DialogHeader>
+              <motion.div 
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                className="space-y-4 pt-4"
+              >
+                <StudentSearch 
+                  onStudentAdded={handleStudentAdded}
+                  excludeStudentIds={dashboardData.students.map(s => s._id) || []}
+                  mode="teacher"
+                />
+              </motion.div>
+            </DialogContent>
+          </Dialog>
+        )}
+      </AnimatePresence>
+    </motion.div>
   );
 }

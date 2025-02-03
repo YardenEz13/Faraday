@@ -1,6 +1,6 @@
 // server/src/controllers/dashboardController.js
-import { User } from "../models/User.js";
-import { Assignment } from "../models/Assignment.js";
+import User from "../models/User.js";
+import Assignment from "../models/Assignment.js";
 
 export const studentDashboard = async (req, res) => {
   try {
@@ -18,12 +18,16 @@ export const studentDashboard = async (req, res) => {
       .populate('teacher', 'username email')
       .sort('-createdAt');
 
+    // Convert topicLevels Map to a plain object
+    const topicLevels = Object.fromEntries(student.topicLevels || new Map());
+
     return res.json({
       student: {
         id: student._id,
         username: student.username,
         email: student.email,
-        mathLevel: student.mathLevel,
+        mathLevel: student.mathLevel || 1,
+        topicLevels,
         teacher: student.teacher ? {
           id: student.teacher._id,
           username: student.teacher.username,
@@ -74,11 +78,15 @@ export const teacherDashboard = async (req, res) => {
           ? Math.round((completedAssignments / studentAssignments.length) * 100)
           : 0;
 
+        // Convert topicLevels Map to a plain object
+        const topicLevels = Object.fromEntries(student.topicLevels || new Map());
+
         return {
           id: student._id,
           email: student.email,
           username: student.username,
-          level: student.mathLevel || 1,
+          mathLevel: student.mathLevel || 1,
+          topicLevels,
           progress: progress,
           assignments: studentAssignments.map(assignment => ({
             id: assignment._id,

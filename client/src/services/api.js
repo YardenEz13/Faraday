@@ -1,7 +1,16 @@
 // client/src/services/api.js
 import axios from "axios";
 
-const API_URL = "http://localhost:4000/api";
+const API_URL = 'http://localhost:4000/api';
+
+const handleApiError = (error) => {
+  console.error('API Error:', error.response?.data || error.message);
+  if (error.response?.status === 401) {
+    // Handle unauthorized access
+    window.location.href = '/login';
+  }
+  throw error;
+};
 
 // Add token to all requests if it exists
 axios.interceptors.request.use(
@@ -46,7 +55,7 @@ export const registerUser = async (userData) => {
     const response = await axios.post(`${API_URL}/auth/register`, userData);
     return response.data;
   } catch (error) {
-    console.error('Registration error:', error.response?.data || error);
+    handleApiError(error);
     throw error;
   }
 };
@@ -72,174 +81,425 @@ export const loginUser = async (credentials) => {
     
     return data;
   } catch (error) {
-    console.error('Login error:', error.response?.data || error.message);
+    handleApiError(error);
     throw error;
   }
 };
 
-export const getStudentDashboard = () => {
-  return axios.get(`${API_URL}/dashboard/student`);
-};
-
-export const getTeacherDashboard = () => {
-  return axios.get(`${API_URL}/dashboard/teacher`);
-};
-
-export const sendAssignmentToStudent = (studentId, assignment) => {
-  console.log('API Service: Starting to send assignment');
-  console.log('API Service: Input data:', {
-    studentId,
-    assignment
-  });
-
-  if (!studentId || !assignment) {
-    console.error('API Service: Missing studentId or assignment');
-    throw new Error('Student ID and assignment are required');
+export const getUnassignedStudents = async (params) => {
+  try {
+    const queryString = params ? `?${params.toString()}` : '';
+    const response = await axios.get(`${API_URL}/user/unassigned-students${queryString}`);
+    if (!response.data) {
+      throw new Error('Invalid response format for unassigned students');
+    }
+    return response.data;
+  } catch (error) {
+    handleApiError(error);
+    throw error;
   }
+};
 
-  // Log all fields to check what might be missing
-  console.log('API Service: Checking required fields:', {
-    hasStudentId: !!studentId,
-    hasTitle: !!assignment.title,
-    hasDescription: !!assignment.description,
-    hasEquation: !!assignment.equation,
-    hasDueDate: !!assignment.dueDate,
-    hasSolution: !!assignment.solution,
-    title: assignment.title,
-    description: assignment.description,
-    equation: assignment.equation,
-    dueDate: assignment.dueDate,
-    solution: assignment.solution
-  });
+export const assignStudent = async (studentId, classId = null) => {
+  try {
+    if (!studentId) {
+      throw new Error('Student ID is required');
+    }
 
-  if (!assignment.title || !assignment.description || !assignment.equation || !assignment.dueDate) {
-    const missingFields = [];
-    if (!assignment.title) missingFields.push('title');
-    if (!assignment.description) missingFields.push('description');
-    if (!assignment.equation) missingFields.push('equation');
-    if (!assignment.dueDate) missingFields.push('dueDate');
+    // If classId is provided, add student to class
+    if (classId) {
+      const response = await axios.post(`${API_URL}/classes/add-student`, {
+        studentId,
+        classId
+      });
+      return response.data;
+    }
     
-    console.error('API Service: Missing required fields:', missingFields);
-    throw new Error(`Missing required fields: ${missingFields.join(', ')}`);
-  }
-
-  // Format the solution
-  const formattedSolution = {
-    steps: assignment.solution?.steps || [],
-    answer: assignment.solution?.final_answers ? 
-      `x=${assignment.solution.final_answers.x}, y=${assignment.solution.final_answers.y}` : '',
-    final_answers: assignment.solution?.final_answers || { x: '', y: '' }
-  };
-
-  // Format the assignment data according to the server's expectations
-  const formattedAssignment = {
-    studentId: studentId,
-    title: assignment.title.trim(),
-    description: assignment.description.trim(),
-    equation: assignment.equation.trim(),
-    solution: formattedSolution,
-    hints: Array.isArray(assignment.hints) ? assignment.hints : [],
-    dueDate: assignment.dueDate
-  };
-
-  // Log the final formatted data being sent
-  console.log('API Service: Sending formatted assignment:', {
-    url: `${API_URL}/assignments/send`,
-    data: formattedAssignment
-  });
-
-  return axios.post(`${API_URL}/assignments/send`, formattedAssignment)
-    .then(response => {
-      console.log('API Service: Server response:', response.data);
-      return response;
-    })
-    .catch(error => {
-      console.error('API Service: Server error:', {
-        status: error.response?.status,
-        data: error.response?.data,
-        message: error.message
-      });
-      throw error;
+    // If no classId, assign student to teacher
+    const response = await axios.post(`${API_URL}/user/assign-student`, {
+      studentId
     });
-};
-
-export const getUnassignedStudents = async () => {
-  try {
-    console.log('Fetching unassigned students...');
-    const response = await axios.get(`${API_URL}/user/unassigned-students`);
-    console.log('Unassigned students response:', response.data);
     return response.data;
   } catch (error) {
-    console.error('Error fetching unassigned students:', error.response?.data || error.message);
+    handleApiError(error);
     throw error;
   }
 };
 
-export const assignStudent = async (studentId) => {
+export const generateAssignmentWithAI = async (prompt) => {
   try {
-    console.log('Assigning student:', studentId);
-    const response = await axios.post(`${API_URL}/user/assign-student/${studentId}`);
-    console.log('Assign student response:', response.data);
+    const response = await axios.post(`${API_URL}/assignments/generate`, { prompt });
+    if (!response.data) {
+      throw new Error('Empty response from AI service');
+    }
     return response.data;
   } catch (error) {
-    console.error('Error assigning student:', error.response?.data || error.message);
+    handleApiError(error);
     throw error;
   }
 };
 
-export const generateAssignmentWithAI = (prompt) => {
-  return axios.post(`${API_URL}/assignments/generate`, { prompt });
+export const getStudentAssignments = async () => {
+  try {
+    const response = await axios.get(`${API_URL}/dashboard/student`);
+    return response.data;
+  } catch (error) {
+    handleApiError(error);
+    throw error;
+  }
 };
 
-export const getStudentAssignments = () => {
-  return axios.get(`${API_URL}/dashboard/student`);
+export const getAssignment = async (assignmentId) => {
+  try {
+    if (!assignmentId) {
+      throw new Error('Assignment ID is required');
+    }
+    const response = await axios.get(`${API_URL}/assignments/${assignmentId}`);
+    return response.data;
+  } catch (error) {
+    handleApiError(error);
+    throw error;
+  }
 };
 
-export const getAssignment = (assignmentId) => {
-  return axios.get(`${API_URL}/assignments/${assignmentId}`);
-};
-
-export const submitAssignmentAnswer = (assignmentId, answer) => {
-  console.log('Submitting answer:', { assignmentId, answer });
-  
-  // The answer is already formatted as a string "x=value, y=value"
-  const formattedAnswer = {
-    answer: answer
-  };
-
-  console.log('Formatted answer being sent:', formattedAnswer);
-  
-  return axios.post(`${API_URL}/assignments/${assignmentId}/submit`, formattedAnswer)
-    .then(response => {
-      console.log('Server response:', response.data);
-      return response;
-    })
-    .catch(error => {
-      console.error('Error submitting answer:', {
-        status: error.response?.status,
-        data: error.response?.data,
-        message: error.message
-      });
-      throw error;
+// Helper function to check answers
+const checkAnswer = (userAnswer, correctAnswer) => {
+  try {
+    console.log('Checking answer:', { userAnswer, correctAnswer });
+    
+    // Normalize the user answer by removing extra spaces and standardizing format
+    const normalizedUserAnswer = userAnswer.replace(/\s+/g, '').toLowerCase();
+    
+    // Parse the user answer string into x and y values - now handles multiple formats
+    const userMatch = normalizedUserAnswer.match(/x=([^,\s]+)[,\s]*y=([^,\s]+)/i);
+    if (!userMatch) {
+      console.log('Invalid answer format');
+      return false;
+    }
+    
+    const [, userX, userY] = userMatch;
+    
+    // Convert to numbers for comparison
+    const userXNum = parseFloat(userX);
+    const userYNum = parseFloat(userY);
+    
+    // Get correct values - handle both string and number formats
+    const correctX = parseFloat(correctAnswer.x);
+    const correctY = parseFloat(correctAnswer.y);
+    
+    if (isNaN(userXNum) || isNaN(userYNum) || isNaN(correctX) || isNaN(correctY)) {
+      console.log('Invalid number conversion');
+      return false;
+    }
+    
+    const tolerance = 0.01;
+    const isXCorrect = Math.abs(userXNum - correctX) <= tolerance;
+    const isYCorrect = Math.abs(userYNum - correctY) <= tolerance;
+    
+    console.log('Comparison:', {
+      userX: userXNum,
+      userY: userYNum,
+      correctX,
+      correctY,
+      isXCorrect,
+      isYCorrect
     });
+    
+    return isXCorrect && isYCorrect;
+  } catch (error) {
+    console.error('Error checking answer:', error);
+    return false;
+  }
 };
 
-export const getTeacherAssignments = () => {
-  return axios.get(`${API_URL}/assignments/teacher`);
+export const submitAssignmentAnswer = async (assignmentId, answer) => {
+  try {
+    if (!assignmentId) {
+      throw new Error('Assignment ID is required');
+    }
+    if (!answer) {
+      throw new Error('Answer is required');
+    }
+    const response = await axios.post(`${API_URL}/assignments/${assignmentId}/answer`, { answer });
+    return response.data;
+  } catch (error) {
+    handleApiError(error);
+    throw error;
+  }
 };
 
-export const getStudents = () => {
-  return axios.get(`${API_URL}/dashboard/teacher`);
+export const getTeacherAssignments = async () => {
+  try {
+    const response = await axios.get(`${API_URL}/assignments/teacher`);
+    return response.data;
+  } catch (error) {
+    handleApiError(error);
+    throw error;
+  }
+};
+
+export const getStudents = async () => {
+  try {
+    const response = await axios.get(`${API_URL}/user/my-students`);
+    if (!response.data) {
+      throw new Error('Invalid response format for students');
+    }
+    return response.data;
+  } catch (error) {
+    handleApiError(error);
+    throw error;
+  }
 };
 
 export const deleteAssignment = async (assignmentId) => {
-  return await axios.delete(`${API_URL}/assignments/${assignmentId}`);
+  try {
+    const response = await axios.delete(`${API_URL}/assignments/${assignmentId}`);
+    return response.data;
+  } catch (error) {
+    handleApiError(error);
+    throw error;
+  }
 };
 
 export const getAssignmentHint = async (assignmentId) => {
-  return await axios.get(`${API_URL}/assignments/${assignmentId}/hint`);
+  try {
+    const response = await axios.get(`${API_URL}/assignments/${assignmentId}/hint`);
+    return response.data;
+  } catch (error) {
+    handleApiError(error);
+    throw error;
+  }
 };
 
 export const surrenderAssignment = async (assignmentId) => {
-  return await axios.post(`${API_URL}/assignments/${assignmentId}/surrender`);
+  try {
+    const response = await axios.post(`${API_URL}/assignments/${assignmentId}/surrender`);
+    return response.data;
+  } catch (error) {
+    handleApiError(error);
+    throw error;
+  }
+};
+
+export const getPracticeQuestion = async (topic, options = {}) => {
+  try {
+    if (!topic) {
+      throw new Error('Topic is required');
+    }
+    const response = await axios.get(`${API_URL}/practice/${topic}`, { params: options });
+    return response.data;
+  } catch (error) {
+    handleApiError(error);
+    throw error;
+  }
+};
+
+export const submitPracticeAnswer = async ({ topic, answer }) => {
+  try {
+    if (!topic) {
+      throw new Error('Topic is required');
+    }
+    const response = await axios.post(`${API_URL}/practice/${topic}/answer`, {
+      topic,
+      answer: answer.toString().trim()
+    });
+    return response.data;
+  } catch (error) {
+    handleApiError(error);
+    throw error;
+  }
+};
+
+export const getAssignmentQuestion = async (assignmentId) => {
+  try {
+    if (!assignmentId) {
+      throw new Error('Assignment ID is required');
+    }
+    const response = await axios.get(`${API_URL}/assignments/${assignmentId}/question`);
+    return response.data;
+  } catch (error) {
+    handleApiError(error);
+    throw error;
+  }
+};
+
+export const createAssignment = async (assignmentData) => {
+  try {
+    if (!assignmentData.title || !assignmentData.topic || !assignmentData.dueDate || !assignmentData.classId || !assignmentData.teacherId) {
+      const missingFields = [];
+      if (!assignmentData.title) missingFields.push('title');
+      if (!assignmentData.topic) missingFields.push('topic');
+      if (!assignmentData.dueDate) missingFields.push('dueDate');
+      if (!assignmentData.classId) missingFields.push('classId');
+      if (!assignmentData.teacherId) missingFields.push('teacherId');
+      
+      throw new Error(`Missing required fields: ${missingFields.join(', ')}`);
+    }
+
+    // Format the data
+    const formattedData = {
+      ...assignmentData,
+      questions: assignmentData.questions.map(q => ({
+        ...q,
+        solution: JSON.stringify(q.solution) // Convert solution object to string
+      })),
+      title: {
+        he: assignmentData.title.he || '',
+        en: assignmentData.title.en || ''
+      },
+      student: null, // This will be set by the server for each student in the class
+      type: 'class' // Explicitly set type as class assignment
+    };
+
+    console.log('API URL being used:', API_URL);
+    console.log('Token:', localStorage.getItem('token'));
+    console.log('Sending assignment data to server:', JSON.stringify(formattedData, null, 2));
+
+    const response = await axios.post(`${API_URL}/assignments`, formattedData, {
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${localStorage.getItem('token')}`
+      }
+    });
+
+    console.log('Server response:', response.data);
+    return response.data;
+  } catch (error) {
+    console.error('Detailed error information:', {
+      message: error.message,
+      response: error.response?.data,
+      status: error.response?.status,
+      headers: error.response?.headers
+    });
+    handleApiError(error);
+    throw error;
+  }
+};
+
+export const getStudentDashboard = async () => {
+  try {
+    const response = await axios.get(`${API_URL}/dashboard/student`);
+    return response.data;
+  } catch (error) {
+    handleApiError(error);
+    throw error;
+  }
+};
+
+export const getStudentDetails = async (studentId) => {
+  try {
+    const response = await axios.get(`${API_URL}/dashboard/student/${studentId}`);
+    return response.data;
+  } catch (error) {
+    handleApiError(error);
+    throw error;
+  }
+};
+
+export const getTeacherDashboard = async () => {
+  try {
+    const response = await axios.get(`${API_URL}/dashboard/teacher`);
+    return response.data;
+  } catch (error) {
+    handleApiError(error);
+    throw error;
+  }
+};
+
+export const sendAssignmentToStudent = async (studentId, assignment) => {
+  try {
+    if (!studentId || !assignment) {
+      throw new Error('Student ID and assignment are required');
+    }
+
+    if (!assignment.title || !assignment.description || !assignment.equation || !assignment.dueDate) {
+      const missingFields = [];
+      if (!assignment.title) missingFields.push('title');
+      if (!assignment.description) missingFields.push('description');
+      if (!assignment.equation) missingFields.push('equation');
+      if (!assignment.dueDate) missingFields.push('dueDate');
+      
+      throw new Error(`Missing required fields: ${missingFields.join(', ')}`);
+    }
+
+    // Format the solution
+    const formattedSolution = {
+      steps: assignment.solution?.steps || [],
+      answer: assignment.solution?.final_answers ? 
+        `x=${assignment.solution.final_answers.x}, y=${assignment.solution.final_answers.y}` : '',
+      final_answers: assignment.solution?.final_answers || { x: '', y: '' }
+    };
+
+    // Format the assignment data
+    const formattedAssignment = {
+      studentId: studentId,
+      title: assignment.title.trim(),
+      description: assignment.description.trim(),
+      equation: assignment.equation.trim(),
+      solution: formattedSolution,
+      hints: Array.isArray(assignment.hints) ? assignment.hints : [],
+      dueDate: assignment.dueDate
+    };
+
+    const response = await axios.post(`${API_URL}/assignments/send`, formattedAssignment);
+    return response.data;
+  } catch (error) {
+    handleApiError(error);
+    throw error;
+  }
+};
+
+// Create a new adaptive assignment
+export const createAdaptiveAssignment = async (data) => {
+  const response = await axios.post('/api/assignments/create', {
+    ...data,
+    isAdaptive: true
+  });
+  return response.data;
+};
+
+export const submitAssignment = async (assignmentId) => {
+  try {
+    if (!assignmentId) {
+      throw new Error('Assignment ID is required');
+    }
+    const response = await axios.post(`${API_URL}/assignments/${assignmentId}/submit`);
+    return response.data;
+  } catch (error) {
+    handleApiError(error);
+    throw error;
+  }
+};
+
+export const getClasses = async () => {
+  try {
+    const response = await axios.get(`${API_URL}/classes`);
+    return response.data;
+  } catch (error) {
+    handleApiError(error);
+    throw error;
+  }
+};
+
+export const createClass = async (classData) => {
+  try {
+    const response = await axios.post(`${API_URL}/classes`, classData);
+    return response.data;
+  } catch (error) {
+    handleApiError(error);
+    throw error;
+  }
+};
+
+export const deleteClass = async (classId) => {
+  try {
+    if (!classId) {
+      throw new Error('Class ID is required');
+    }
+    const response = await axios.delete(`${API_URL}/classes/${classId}`);
+    return response.data;
+  } catch (error) {
+    handleApiError(error);
+    throw error;
+  }
 };

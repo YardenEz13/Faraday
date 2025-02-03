@@ -1,6 +1,6 @@
 import mongoose from 'mongoose';
-import { User } from '../models/User.js';
-import { Assignment } from '../models/Assignment.js';
+import User from '../models/User.js';
+import Assignment from '../models/Assignment.js';
 import "dotenv/config";
 
 async function initDb() {

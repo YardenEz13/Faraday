@@ -1,449 +1,296 @@
-import React, { useState, useEffect } from "react";
-import { useNavigate, useParams } from "react-router-dom";
-import { generateAssignmentWithAI, sendAssignmentToStudent, getStudents } from "../services/api";
-import { Card, CardHeader, CardTitle, CardContent } from "../components/ui/card";
-import { Button } from "../components/ui/button";
-import { Textarea } from "../components/ui/textarea";
-import { toast } from "react-hot-toast";
-import { RadioGroup, RadioGroupItem } from "../components/ui/radio-group";
-import { Label } from "../components/ui/label";
-import { Input } from "../components/ui/input";
-import { format, isValid } from "date-fns";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { QUESTIONS_BANK } from '@/data/questionsBank';
+import { toast } from 'react-hot-toast';
+import { useTranslation } from 'react-i18next';
+import { createAssignment } from '@/services/api';
 
-const ASSIGNMENT_TEMPLATES = [
-  {
-    id: "custom",
-    title: "תרגיל מותאם אישית",
-    description: "צור תרגיל חדש לפי הגדרה אישית",
-    prompt: ""
-  },
-  {
-    id: "linear_equations",
-    title: "מערכת משוואות לינאריות",
-    description: "תרגיל במערכת משוואות עם שני נעלמים",
-    prompt: "צור תרגיל במערכת משוואות לינאריות עם שני נעלמים. השתמש במספרים שלמים וקלים לחישוב."
-  },
-  {
-    id: "word_problem",
-    title: "בעיה מילולית",
-    description: "תרגיל בעיה מילולית עם שני נעלמים",
-    prompt: "צור בעיה מילולית שמתורגמת למערכת משוואות עם שני נעלמים. הבעיה צריכה להיות מחיי היומיום, למשל חישוב מחירים או כמויות."
-  },
-  {
-    id: "geometry",
-    title: "גיאומטריה אנליטית",
-    description: "תרגיל בגיאומטריה אנליטית עם שני נעלמים",
-    prompt: "צור תרגיל בגיאומטריה אנליטית שכולל מציאת נקודת חיתוך של שני ישרים במישור. השתמש במשוואות קו ישר פשוטות."
-  }
-];
+const TOPICS = {
+  equations: "equations",
+  trigonometry: "trigonometry",
+  vectors: "vectors",
+  complex: "complex",
+  calculus: "calculus",
+  sequences: "sequences",
+  geometry: "geometry",
+  probability: "probability"
+};
 
-const AI_PROMPT_TEMPLATE = `
-אתה עוזר הוראה למתמטיקה. צור תרגיל מתמטיקה לפי הבקשה הבאה: "{prompt}"
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
 
-כללים:
-1. השתמש במספרים שלמים וסבירים
-2. וודא שיש פתרון מלא ומסודר
-3. הוסף רמזים שיעזרו לתלמיד להבין את דרך הפתרון
-4. וודא שהתשובה הסופית מכילה שני ערכים - X ו-Y
-5. חשוב: התשובות חייבות להיות מספרים שלמים בלבד
-6. התשובות חייבות להיות בפורמט: x=NUMBER,y=NUMBER (ללא רווחים)
-
-החזר את התרגיל במבנה הבא:
-{
-  "title": "כותרת התרגיל",
-  "description": "תיאור התרגיל",
-  "equation": "מערכת המשוואות",
-  "solution": {
-    "steps": [
-      "שלב 1: הסבר ברור של הצעד הראשון",
-      "שלב 2: הסבר ברור של הצעד השני",
-      "..."
-    ],
-    "answer": "x=NUMBER,y=NUMBER"
-  },
-  "hints": [
-    "רמז 1",
-    "רמז 2",
-    "רמז 3"
-  ]
-}
-
-חשוב מאוד:
-1. התאם את סוג התרגיל בדיוק למה שהמורה ביקש
-2. וודא שהמספרים הגיוניים ומתאימים לרמת תיכון
-3. כתוב את כל ההסברים בעברית
-4. התשובות הסופיות חייבות להיות מספרים שלמים בלבד
-5. וודא שהמשוואות מובילות לפתרון שלם ומדויק
-6. התשובות חייבות להיות בפורמט המדויק: x=NUMBER,y=NUMBER
-`;
-
-function AssignmentCreatePage() {
+export default function AssignmentCreatePage() {
   const navigate = useNavigate();
-  const { studentId: urlStudentId } = useParams();
-  const [selectedStudentId, setSelectedStudentId] = useState(urlStudentId || "");
-  const [students, setStudents] = useState([]);
-  const [selectedTemplate, setSelectedTemplate] = useState("custom");
-  const [prompt, setPrompt] = useState("");
-  const [generatedAssignment, setGeneratedAssignment] = useState(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [dueDate, setDueDate] = useState("");
+  const { t, i18n } = useTranslation();
+  const isRTL = i18n.language === 'he';
+  const [titleHe, setTitleHe] = useState('');
+  const [titleEn, setTitleEn] = useState('');
+  const [selectedTopic, setSelectedTopic] = useState('');
+  const [questions, setQuestions] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [dueDate, setDueDate] = useState('');
+  const [classes, setClasses] = useState([]);
+  const [selectedClassId, setSelectedClassId] = useState('');
+  const [teacherId, setTeacherId] = useState(null);
 
   useEffect(() => {
-    // If we have a studentId in the URL, use it
-    if (urlStudentId) {
-      setSelectedStudentId(urlStudentId);
-    }
-    // Fetch students list if we don't have a studentId
-    else {
-      fetchStudents();
-    }
-  }, [urlStudentId]);
-
-  const fetchStudents = async () => {
-    try {
-      const response = await getStudents();
-      setStudents(response.data);
-    } catch (error) {
-      console.error('Error fetching students:', error);
-      toast.error('שגיאה בטעינת רשימת התלמידים');
-    }
-  };
-
-  const handleTemplateChange = (value) => {
-    setSelectedTemplate(value);
-    const template = ASSIGNMENT_TEMPLATES.find(t => t.id === value);
-    if (template && template.prompt) {
-      setPrompt(template.prompt);
+    fetchClasses();
+    // Get teacherId from token
+    const token = localStorage.getItem('token');
+    if (token) {
+      const decodedToken = parseJwt(token);
+      if (decodedToken && decodedToken.id) {
+        setTeacherId(decodedToken.id);
+      } else {
+        console.error('No teacher ID found in token');
+        toast.error(t('errors.unauthorized'));
+        navigate('/login');
+      }
     } else {
-      setPrompt("");
+      console.error('No token found');
+      toast.error(t('errors.unauthorized'));
+      navigate('/login');
     }
-  };
+  }, []);
 
-  const handleGenerateAssignment = async () => {
-    if (!prompt) {
-      toast.error("Please provide some instructions for the assignment.");
-      return;
-    }
-    setIsSubmitting(true);
-
+  const fetchClasses = async () => {
     try {
-      const fullPrompt = AI_PROMPT_TEMPLATE.replace('{prompt}', prompt);
-      const response = await generateAssignmentWithAI(fullPrompt);
-      let parsedResponse = response.data;
-      
-      if (typeof response.data === 'string') {
-        parsedResponse = JSON.parse(response.data);
-      }
-
-      // Validate the response structure
-      if (!parsedResponse?.solution) {
-        console.error('Missing solution:', parsedResponse);
-        toast.error('Generated assignment is missing solution. Please try again.');
-        setIsSubmitting(false);
-        return;
-      }
-
-      let x, y;
-
-      // Handle old format (final_answers)
-      if (parsedResponse.solution.final_answers) {
-        x = parsedResponse.solution.final_answers.x;
-        y = parsedResponse.solution.final_answers.y;
-      }
-      // Handle new format (answer)
-      else if (parsedResponse.solution.answer) {
-        const answerMatch = parsedResponse.solution.answer.match(/x=(-?\d+),y=(-?\d+)/);
-        if (!answerMatch) {
-          console.error('Invalid answer format:', parsedResponse.solution.answer);
-          toast.error('Generated answer is in incorrect format. Please try again.');
-          setIsSubmitting(false);
-          return;
+      const response = await fetch(`${API_BASE_URL}/api/classes`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
         }
-        x = answerMatch[1];
-        y = answerMatch[2];
-      }
-      // No valid format found
-      else {
-        console.error('No valid answer format found:', parsedResponse.solution);
-        toast.error('Generated assignment has invalid solution format. Please try again.');
-        setIsSubmitting(false);
-        return;
-      }
-
-      // Convert to numbers and validate
-      x = parseInt(x);
-      y = parseInt(y);
-
-      if (!Number.isInteger(x) || !Number.isInteger(y)) {
-        console.error('Non-integer solutions:', { x, y });
-        toast.error('Generated assignment must have integer solutions. Please try again.');
-        setIsSubmitting(false);
-        return;
-      }
-
-      // Store the solution in the exact format needed for verification
-      const formattedAnswer = `x=${x},y=${y}`;
-      parsedResponse.solution = {
-        steps: parsedResponse.solution.steps || [],
-        answer: formattedAnswer,
-        final_answers: {
-          x: x.toString(),
-          y: y.toString()
-        }
-      };
-
-      console.log('Generated assignment:', {
-        title: parsedResponse.title,
-        description: parsedResponse.description,
-        equation: parsedResponse.equation,
-        solution: parsedResponse.solution
       });
-
-      setGeneratedAssignment(parsedResponse);
-      toast.success("Assignment generated successfully!");
+      const data = await response.json();
+      setClasses(data);
     } catch (error) {
-      console.error('Generation error:', error);
-      toast.error("Failed to generate assignment. Please try again.");
-    } finally {
-      setIsSubmitting(false);
+      console.error('Error fetching classes:', error);
+      toast.error(t('errors.fetchClasses'));
     }
   };
 
-  const handleSendAssignment = async () => {
-    console.log('Starting assignment send process...');
+  const handleTopicSelect = (topic) => {
+    setSelectedTopic(topic);
     
-    if (!selectedStudentId || !generatedAssignment || !dueDate) {
-      const missing = [];
-      if (!selectedStudentId) missing.push('student');
-      if (!generatedAssignment) missing.push('generatedAssignment');
-      if (!dueDate) missing.push('dueDate');
-      
-      console.error('Missing required fields:', missing);
-      toast.error("אנא מלא את כל השדות הנדרשים");
+    // Save current language
+    const currentLang = i18n.language;
+    
+    // Switch to Hebrew and get Hebrew title
+    i18n.changeLanguage('he');
+    const heTitle = t('assignments.topicAssignment', { 
+      topic: t(`practice.topics.${topic}.title`),
+      interpolation: { escapeValue: false }
+    });
+    
+    // Switch to English and get English title
+    i18n.changeLanguage('en');
+    const enTitle = t('assignments.topicAssignment', { 
+      topic: t(`practice.topics.${topic}.title`),
+      interpolation: { escapeValue: false }
+    });
+    
+    // Restore original language
+    i18n.changeLanguage(currentLang);
+    
+    console.log('Setting titles:', { heTitle, enTitle });
+    setTitleHe(heTitle);
+    setTitleEn(enTitle);
+  };
+
+  const handleGenerateAssignment = () => {
+    setLoading(true);
+    try {
+      // Get all questions for the selected topic
+      const topicQuestions = QUESTIONS_BANK[selectedTopic];
+      if (!topicQuestions || topicQuestions.length === 0) {
+        throw new Error(t('errors.noQuestionsAvailable'));
+      }
+
+      // Generate questions using the generators
+      const generatedQuestions = topicQuestions.map(q => q.generator());
+      setQuestions(generatedQuestions);
+      toast.success(t('success.questionsGenerated'));
+    } catch (error) {
+      console.error('Error generating assignment:', error);
+      toast.error(error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const parseJwt = (token) => {
+    try {
+      const base64Url = token.split('.')[1];
+      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+      const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
+        return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+      }).join(''));
+      return JSON.parse(jsonPayload);
+    } catch (e) {
+      console.error('Error parsing JWT:', e);
+      return null;
+    }
+  };
+
+  const handleCreateAssignment = async (e) => {
+    e.preventDefault();
+
+    if (!teacherId) {
+      toast.error(t('errors.unauthorized'));
       return;
     }
 
-    // Validate solution exists and has the correct format
-    if (!generatedAssignment.solution?.final_answers?.x || 
-        !generatedAssignment.solution?.final_answers?.y) {
-      console.error('Missing solution fields:', generatedAssignment.solution);
-      toast.error("התרגיל חסר פתרון מלא");
+    // Validate required fields
+    if (!selectedTopic || !dueDate) {
+      toast.error(t('assignments.missingFields'));
       return;
     }
 
-    setIsSubmitting(true);
+    if (!selectedClassId) {
+      toast.error(t('assignments.selectClass'));
+      return;
+    }
 
     try {
-      const dueDateWithTime = new Date(dueDate);
-      if (!isValid(dueDateWithTime)) {
-        console.error('Invalid date:', dueDateWithTime);
-        toast.error("תאריך לא תקין");
-        return;
-      }
-
-      dueDateWithTime.setHours(23, 59, 59);
-      const formattedDueDate = format(dueDateWithTime, 'yyyy-MM-dd HH:mm:ss');
-
-      // Parse the solution if it's a string
-      let parsedSolution = generatedAssignment.solution;
-      if (typeof parsedSolution === 'string') {
-        try {
-          parsedSolution = JSON.parse(parsedSolution);
-        } catch (e) {
-          console.error('Failed to parse solution:', e);
-        }
-      }
-
-      // Format the answer in the exact format needed for verification
-      const x = parsedSolution.final_answers?.x || generatedAssignment.solution.final_answers?.x;
-      const y = parsedSolution.final_answers?.y || generatedAssignment.solution.final_answers?.y;
-      const formattedAnswer = `x=${x},y=${y}`;
-
-      // Create the solution object with both the formatted answer and the detailed solution
-      const solution = JSON.stringify({
-        steps: parsedSolution.steps || [],
-        answer: formattedAnswer,
-        final_answers: {
-          x: x.toString(),
-          y: y.toString()
-        }
-      });
-
-      console.log('Formatted solution:', {
-        original: generatedAssignment.solution,
-        parsed: parsedSolution,
-        formatted: JSON.parse(solution)
-      });
-
-      const formattedAssignment = {
-        studentId: selectedStudentId,
-        title: generatedAssignment.title?.trim() || '',
-        description: generatedAssignment.description?.trim() || '',
-        equation: generatedAssignment.equation?.trim() || '',
-        solution,
-        hints: Array.isArray(generatedAssignment.hints) ? generatedAssignment.hints : [],
-        dueDate: formattedDueDate
+      const assignmentData = {
+        topic: selectedTopic,
+        title: {
+          he: titleHe,
+          en: titleEn
+        },
+        dueDate: dueDate,
+        teacherId: teacherId,
+        classId: selectedClassId,
+        questions: questions || []
       };
 
-      console.log('Sending formatted assignment:', {
-        ...formattedAssignment,
-        solution: JSON.parse(formattedAssignment.solution)
-      });
+      console.log('Creating assignment with data:', assignmentData);
 
-      console.log('Stored solution:', {
-        rawSolution: generatedAssignment.solution,
-        parsedSolution: typeof generatedAssignment.solution === 'string' 
-          ? JSON.parse(generatedAssignment.solution) 
-          : generatedAssignment.solution,
-        formattedAnswer: formattedAnswer
-      });
+      const response = await createAssignment(assignmentData);
+      console.log('Assignment creation response:', response);
 
-      const response = await sendAssignmentToStudent(selectedStudentId, formattedAssignment);
-      console.log('Server response:', response.data);
-
-      toast.success("המטלה נשלחה בהצלחה!");
-      navigate("/dashboard/teacher");
+      if (response) {
+        toast.success(t('assignments.created'));
+        navigate('/assignments');
+      } else {
+        throw new Error('No response from server');
+      }
     } catch (error) {
-      console.error('Error sending assignment:', {
-        error,
-        response: error.response,
-        data: error.response?.data,
-        message: error.message
-      });
-      const errorMessage = error.response?.data?.message || 
-                          error.response?.data?.error || 
-                          "שגיאה בשליחת המטלה. אנא נסה שוב.";
-      toast.error(errorMessage);
-    } finally {
-      setIsSubmitting(false);
+      console.error('Error creating assignment:', error);
+      toast.error(t('assignments.errorCreating'));
     }
   };
 
   return (
-    <div className="container mx-auto p-6">
-      <Button variant="outline" className="mb-6" onClick={() => navigate(-1)}>
-        חזרה
-      </Button>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>יצירת שיעורי בית חדשים</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-6">
-            {!urlStudentId && (
-              <div className="space-y-2">
-                <Label>בחר תלמיד</Label>
-                <Select value={selectedStudentId} onValueChange={setSelectedStudentId}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="בחר תלמיד" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {students.map((student) => (
-                      <SelectItem key={student.id} value={student.id.toString()}>
-                        {student.username} ({student.email})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-
-            <div>
-              <h3 className="text-lg font-semibold mb-4">בחר סוג תרגיל:</h3>
-              <RadioGroup
-                value={selectedTemplate}
-                onValueChange={handleTemplateChange}
-                className="grid grid-cols-1 md:grid-cols-2 gap-4"
+    <div className={`container mx-auto p-4 ${isRTL ? 'font-yarden' : 'font-inter'}`} dir={isRTL ? 'rtl' : 'ltr'}>
+      <h1 className="text-2xl font-bold mb-4">{t('createAssignment.title')}</h1>
+      
+      <div className="grid gap-4 mb-4">
+        <div>
+          <Label>{t('createAssignment.selectTopic')}</Label>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {Object.entries(TOPICS).map(([key, value]) => (
+              <Card 
+                key={key}
+                className={`cursor-pointer ${selectedTopic === key ? 'border-primary' : ''}`}
+                onClick={() => handleTopicSelect(key)}
               >
-                {ASSIGNMENT_TEMPLATES.map((template) => (
-                  <div key={template.id} className="flex items-start space-x-2">
-                    <RadioGroupItem value={template.id} id={template.id} />
-                    <Label htmlFor={template.id} className="flex flex-col">
-                      <span className="font-semibold">{template.title}</span>
-                      <span className="text-sm text-muted-foreground">
-                        {template.description}
-                      </span>
-                    </Label>
-                  </div>
-                ))}
-              </RadioGroup>
-            </div>
-
-            <div className="space-y-4">
-              <label className="block text-sm font-medium mb-2">
-                {selectedTemplate === "custom" ? "תאר את התרגיל שברצונך ליצור:" : "ערוך את ההנחיות לפי הצורך:"}
-              </label>
-              <Textarea
-                value={prompt}
-                onChange={(e) => setPrompt(e.target.value)}
-                placeholder="לדוגמה: צור תרגיל במערכת משוואות לינאריות..."
-                className="min-h-[100px]"
-              />
-
-              <Button 
-                onClick={handleGenerateAssignment}
-                disabled={isSubmitting || !prompt}
-                className="w-full"
-              >
-                {isSubmitting ? "מייצר תרגיל..." : "צור תרגיל"}
-              </Button>
-            </div>
-
-            {generatedAssignment && typeof generatedAssignment === "object" && (
-              <div className="mt-8 space-y-4 bg-muted p-6 rounded-lg">
-                <h3 className="text-xl font-semibold mb-2">
-                  {generatedAssignment.title || "תרגיל חדש"}
-                </h3>
-                <div className="space-y-4">
-                  <div>
-                    <h4 className="font-semibold">תיאור:</h4>
-                    <p>{generatedAssignment.description}</p>
-                  </div>
-                  <div>
-                    <h4 className="font-semibold">משוואות:</h4>
-                    <pre className="bg-background p-4 rounded-md">
-                      {generatedAssignment.equation}
-                    </pre>
-                  </div>
-                  <div>
-                    <h4 className="font-semibold">רמזים:</h4>
-                    <ul className="list-disc list-inside">
-                      {generatedAssignment.hints.map((hint, index) => (
-                        <li key={index}>{hint}</li>
-                      ))}
-                    </ul>
-                  </div>
-
-                  <div className="space-y-4">
-                    <div>
-                      <Label htmlFor="dueDate">תאריך הגשה:</Label>
-                      <Input
-                        id="dueDate"
-                        type="date"
-                        value={dueDate}
-                        onChange={(e) => setDueDate(e.target.value)}
-                        min={new Date().toISOString().split('T')[0]}
-                      />
-                    </div>
-                  </div>
-
-                  <Button
-                    onClick={handleSendAssignment}
-                    disabled={isSubmitting || !dueDate}
-                    className="w-full"
-                  >
-                    {isSubmitting ? "שולח..." : "שלח לתלמיד"}
-                  </Button>
-                </div>
-              </div>
-            )}
+                <CardHeader>
+                  <CardTitle>{t(`practice.topics.${value}.title`)}</CardTitle>
+                </CardHeader>
+              </Card>
+            ))}
           </div>
-        </CardContent>
-      </Card>
+        </div>
+
+        {selectedTopic && (
+          <div className="bg-muted/50 p-4 rounded-lg">
+            <Label>{t('createAssignment.assignmentTitle')}</Label>
+            <p className="mt-2 text-lg font-semibold">
+              {isRTL ? titleHe : titleEn}
+            </p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {isRTL ? titleEn : titleHe}
+            </p>
+          </div>
+        )}
+
+        <div className="space-y-4">
+          <div>
+            <Label>{t('createAssignment.selectClass')}</Label>
+            <Select 
+              value={selectedClassId}
+              onValueChange={setSelectedClassId}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder={t('createAssignment.selectClass')} />
+              </SelectTrigger>
+              <SelectContent>
+                {classes.map((classItem) => (
+                  <SelectItem key={classItem._id} value={classItem._id}>
+                    {classItem.name[i18n.language]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div>
+            <Label>{t('createAssignment.dueDate')}</Label>
+            <Input
+              type="datetime-local"
+              value={dueDate}
+              onChange={(e) => setDueDate(e.target.value)}
+              min={new Date().toISOString().slice(0, 16)}
+              className="[color-scheme:light] dark:[color-scheme:dark]"
+            />
+          </div>
+        </div>
+
+        <div className="flex gap-4 mb-4">
+          <Button
+            onClick={handleGenerateAssignment}
+            disabled={!selectedTopic || loading}
+          >
+            {loading ? t('loading') : t('createAssignment.generateQuestions')}
+          </Button>
+          <Button
+            onClick={handleCreateAssignment}
+            disabled={!titleHe || !titleEn || !questions.length || !dueDate || !selectedClassId || loading}
+            variant="default"
+          >
+            {loading ? t('loading') : t('createAssignment.create')}
+          </Button>
+        </div>
+
+        {questions.length > 0 && (
+          <div className="grid gap-4">
+            <h2 className="text-xl font-bold">{isRTL ? titleHe : titleEn}</h2>
+            {questions.map((question, index) => (
+              <Card key={index}>
+                <CardContent className="p-4">
+                  <h3 className="font-bold mb-2">{question.title}</h3>
+                  <p className="mb-2">{question.description}</p>
+                  <p className="font-mono bg-gray-100 p-2 rounded dark:bg-gray-800 dark:text-white">{question.equation}</p>
+                  {question.hints && (
+                    <div className="mt-2">
+                      <p className="font-bold">{t('hints')}:</p>
+                      <ul className="list-disc list-inside">
+                        {question.hints.map((hint, hintIndex) => (
+                          <li key={hintIndex}>{hint}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
-}
-
-export default AssignmentCreatePage; 
+} 

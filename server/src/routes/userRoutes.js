@@ -1,85 +1,55 @@
 import express from "express";
-import { createUser, getUser, updateUser, searchUnassignedStudents, assignTeacherToStudent } from "../controllers/userController.js";
-import { authenticateToken } from "../middleware/auth.js";
-import { User } from "../models/User.js";
-import { Assignment } from "../models/Assignment.js";
+import { createUser, getUser, updateUser, searchUnassignedStudents, assignTeacherToStudent, assignStudentToTeacher } from "../controllers/userController.js";
+import { authMiddleware, teacherMiddleware } from "../middleware/authMiddleware.js";
+import User from "../models/User.js";
+import Assignment from "../models/Assignment.js";
 
 const router = express.Router();
 
-// Get user profile
-router.get("/profile", authenticateToken, async (req, res) => {
+// Profile routes
+router.get("/me", authMiddleware, async (req, res) => {
   try {
-    const user = await getUser(req.user.id);
+    const user = await User.findById(req.user.id).select('-password');
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
     res.json(user);
   } catch (error) {
-    console.error('Failed to get user profile:', error);
-    res.status(400).json({ error: error.message });
+    console.error('Error fetching user profile:', error);
+    res.status(500).json({ message: 'Failed to fetch user profile' });
   }
 });
 
-// Update user profile
-router.put("/profile", authenticateToken, async (req, res) => {
+router.patch("/me", authMiddleware, async (req, res) => {
   try {
-    const updatedUser = await updateUser(req.user.id, req.body);
-    res.json(updatedUser);
-  } catch (error) {
-    console.error('Failed to update user profile:', error);
-    res.status(400).json({ error: error.message });
-  }
-});
+    const { username, email } = req.body;
+    const user = await User.findById(req.user.id);
 
-// Assign student to teacher
-router.post("/assign-student/:studentId", authenticateToken, async (req, res) => {
-  if (req.user.role !== 'teacher') {
-    return res.status(403).json({ error: "Only teachers can assign students" });
-  }
-  await assignTeacherToStudent(req, res);
-});
-
-// Get teacher's students
-router.get("/my-students", authenticateToken, async (req, res) => {
-  try {
-    if (req.user.role !== 'teacher') {
-      return res.status(403).json({ error: "Only teachers can view their students" });
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
     }
 
+    if (username) user.username = username;
+    if (email) user.email = email;
+
+    await user.save();
+    res.json({ message: 'Profile updated successfully', user });
+  } catch (error) {
+    console.error('Error updating user profile:', error);
+    res.status(500).json({ message: 'Failed to update profile' });
+  }
+});
+
+// Teacher-student management routes
+router.get("/students", authMiddleware, teacherMiddleware, async (req, res) => {
+  try {
     const students = await User.find({
       role: "student",
       teacher: req.user.id
-    }).select('id username email mathLevel');
-
-    res.json(students);
-  } catch (error) {
-    console.error('Failed to get students:', error);
-    res.status(500).json({ error: "Internal server error" });
-  }
-});
-
-// Get unassigned students
-router.get("/unassigned-students", authenticateToken, async (req, res) => {
-  if (req.user.role !== 'teacher') {
-    return res.status(403).json({ error: "Only teachers can view unassigned students" });
-  }
-  await searchUnassignedStudents(req, res);
-});
-
-// Get student statistics
-router.get("/student-statistics", authenticateToken, async (req, res) => {
-  try {
-    if (req.user.role !== 'teacher') {
-      return res.status(403).json({ error: "Only teachers can view student statistics" });
-    }
-
-    const students = await User.find({
-      role: "student",
-      teacher: req.user.id
-    });
+    }).select('_id username email mathLevel streak updatedAt');
 
     const studentStats = await Promise.all(students.map(async (student) => {
-      const assignments = await Assignment.find({
-        student: student._id
-      });
-
+      const assignments = await Assignment.find({ student: student._id });
       const totalAssignments = assignments.length;
       const completedAssignments = assignments.filter(a => a.isCompleted).length;
       const completionRate = totalAssignments > 0 
@@ -88,7 +58,7 @@ router.get("/student-statistics", authenticateToken, async (req, res) => {
 
       return {
         id: student._id,
-        name: student.username,
+        username: student.username,
         email: student.email,
         mathLevel: student.mathLevel || 1,
         totalAssignments,
@@ -101,9 +71,15 @@ router.get("/student-statistics", authenticateToken, async (req, res) => {
 
     res.json(studentStats);
   } catch (error) {
-    console.error('Failed to get student statistics:', error);
-    res.status(500).json({ error: "Internal server error" });
+    console.error('Failed to get students:', error);
+    res.status(500).json({ message: 'Failed to fetch students' });
   }
 });
+
+// Get unassigned students
+router.get("/unassigned-students", authMiddleware, teacherMiddleware, searchUnassignedStudents);
+
+// Assign student to teacher
+router.post("/assign-student", authMiddleware, teacherMiddleware, assignStudentToTeacher);
 
 export { router as userRoutes }; 

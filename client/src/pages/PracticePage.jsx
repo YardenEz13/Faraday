@@ -1,233 +1,171 @@
-import React, { useState } from "react";
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "../components/ui/card";
-import { Button } from "../components/ui/button";
-import { Textarea } from "../components/ui/textarea";
-import { toast } from "react-hot-toast";
-import { generateAssignmentWithAI } from "../services/api";
-import { Brain, ArrowLeft, Plus } from "lucide-react";
-import { useNavigate, Link } from "react-router-dom";
+import React, { useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { useTranslation } from 'react-i18next';
+import { Brain, Calculator, ChevronRight, Sigma, Triangle, ArrowUpRight, Infinity, LineChart, Box, Percent } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
-function PracticePage() {
-  const navigate = useNavigate();
-  const [prompt, setPrompt] = useState("");
-  const [generatedAssignment, setGeneratedAssignment] = useState(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
-  const practiceTopics = [
-    {
-      title: "מערכת משוואות",
-      description: "תרגול מערכת משוואות עם שני נעלמים",
-      prompt: "צור תרגיל במערכת משוואות לינאריות עם שני נעלמים. השתמש במספרים שלמים וקלים לחישוב."
-    },
-    {
-      title: "בעיות מילוליות",
-      description: "תרגול בעיות מילוליות עם משוואות",
-      prompt: "צור בעיה מילולית שמתורגמת למערכת משוואות עם שני נעלמים. הבעיה צריכה להיות מחיי היומיום, למשל חישוב מחירים או כמויות."
-    },
-    {
-      title: "גיאומטריה אנליטית",
-      description: "תרגול חישובים בגיאומטריה אנליטית",
-      prompt: "צור תרגיל בגיאומטריה אנליטית שכולל מציאת נקודת חיתוך של שני ישרים במישור. השתמש במשוואות קו ישר פשוטות."
+const container = {
+  hidden: { opacity: 0 },
+  show: {
+    opacity: 1,
+    transition: {
+      staggerChildren: 0.1
     }
-  ];
+  }
+};
 
-  const handleTopicSelect = (topicPrompt) => {
-    setPrompt(topicPrompt);
-    handleGenerateAssignment(topicPrompt);
-  };
+const item = {
+  hidden: { opacity: 0, y: 20 },
+  show: { opacity: 1, y: 0 }
+};
 
-  const handleGenerateAssignment = async (selectedPrompt = prompt) => {
-    if (!selectedPrompt) {
-      toast.error("אנא בחר נושא או תאר את התרגיל שברצונך לתרגל");
-      return;
-    }
-    setIsSubmitting(true);
-
-    const fullPrompt = `
-[INST]
-אתה עוזר הוראה למתמטיקה. צור תרגיל מתמטיקה לפי הבקשה הבאה: "${selectedPrompt}"
-
-כללים:
-1. השתמש במספרים שלמים וסבירים
-2. וודא שיש פתרון מלא ומסודר
-3. הוסף רמזים שיעזרו לתלמיד להבין את דרך הפתרון
-4. וודא שהתשובה הסופית מכילה שני ערכים - X ו-Y
-
-החזר את התרגיל במבנה הבא:
-{
-  "title": "כותרת התרגיל",
-  "description": "תיאור התרגיל",
-  "equation": "מערכת המשוואות",
-  "solution": {
-    "steps": [
-      "שלב 1: הסבר ברור של הצעד הראשון",
-      "שלב 2: הסבר ברור של הצעד השני",
-      "..."
-    ],
-    "final_answers": {
-      "x": "הערך של X",
-      "y": "הערך של Y"
-    }
+const topics = [
+  { 
+    id: 'equations',
+    icon: Calculator,
+    color: 'text-teal-500',
+    gradient: 'from-teal-500/10 to-transparent'
   },
-  "hints": [
-    "רמז 1",
-    "רמז 2",
-    "רמז 3"
-  ]
-}
+  { 
+    id: 'trigonometry',
+    icon: Triangle,
+    color: 'text-emerald-500',
+    gradient: 'from-emerald-500/10 to-transparent'
+  },
+  { 
+    id: 'vectors',
+    icon: ArrowUpRight,
+    color: 'text-green-500',
+    gradient: 'from-green-500/10 to-transparent'
+  },
+  { 
+    id: 'complex',
+    icon: Infinity,
+    color: 'text-teal-600',
+    gradient: 'from-teal-600/10 to-transparent'
+  },
+  { 
+    id: 'calculus',
+    icon: LineChart,
+    color: 'text-emerald-600',
+    gradient: 'from-emerald-600/10 to-transparent'
+  },
+  { 
+    id: 'sequences',
+    icon: Sigma,
+    color: 'text-green-600',
+    gradient: 'from-green-600/10 to-transparent'
+  },
+  { 
+    id: 'geometry',
+    icon: Box,
+    color: 'text-teal-500',
+    gradient: 'from-teal-500/10 to-transparent'
+  },
+  { 
+    id: 'probability',
+    icon: Percent,
+    color: 'text-emerald-500',
+    gradient: 'from-emerald-500/10 to-transparent'
+  }
+];
 
-חשוב:
-1. התאם את סוג התרגיל בדיוק למה שהתלמיד ביקש
-2. וודא שהמספרים הגיוניים ומתאימים לרמת תיכון
-3. כתוב את כל ההסברים בעברית
-4. וודא שהתשובות הסופיות הן מספרים בודדים
-[/INST]
-`;
+export default function PracticePage() {
+  const { t, i18n } = useTranslation();
+  const isRTL = i18n.language === 'he';
+  const navigate = useNavigate();
+  const [hoveredTopic, setHoveredTopic] = useState(null);
 
-    try {
-      const response = await generateAssignmentWithAI(fullPrompt);
-      let parsedResponse = response.data;
-      
-      if (typeof response.data === 'string') {
-        try {
-          parsedResponse = JSON.parse(response.data);
-        } catch (e) {
-          console.error('Failed to parse AI response:', e);
-          toast.error('Failed to parse the generated assignment. Please try again.');
-          setIsSubmitting(false);
-          return;
-        }
-      }
-
-      if (!parsedResponse.title || !parsedResponse.description || 
-          !parsedResponse.solution?.final_answers?.x || !parsedResponse.solution?.final_answers?.y) {
-        console.error('Invalid response structure:', parsedResponse);
-        toast.error('The generated assignment is missing required fields. Please try again.');
-        setIsSubmitting(false);
-        return;
-      }
-
-      setGeneratedAssignment(parsedResponse);
-      toast.success("התרגיל נוצר בהצלחה!");
-    } catch (error) {
-      console.error(error);
-      toast.error("שגיאה ביצירת התרגיל. אנא נסה שוב.");
-    } finally {
-      setIsSubmitting(false);
-    }
+  const handleTopicClick = (topicId) => {
+    navigate(`/practice/${topicId}`);
   };
 
   return (
-    <div className="container mx-auto p-6">
-      <Button 
-        variant="outline" 
-        className="mb-6"
-        onClick={() => navigate(-1)}
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      className={`w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 ${isRTL ? 'font-yarden' : 'font-inter'}`}
+      dir={isRTL ? 'rtl' : 'ltr'}
+    >
+      <motion.div 
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className={`flex items-center gap-3 mb-8 ${isRTL ? 'flex-row-reverse' : ''}`}
       >
-        <ArrowLeft className="w-4 h-4 mr-2" />
-        חזרה
-      </Button>
+        <Brain className="w-8 h-8 text-teal-500" />
+        <div>
+          <h1 className="text-2xl font-bold bg-gradient-to-r from-teal-500 to-emerald-500 bg-clip-text text-transparent">
+            {t('practice.title')}
+          </h1>
+          <p className="text-muted-foreground mt-1">{t('practice.description')}</p>
+        </div>
+      </motion.div>
 
-      <div className="grid gap-6">
-        {/* Topics Section */}
-        <Card>
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <Brain className="w-6 h-6 text-primary" />
-              <CardTitle>נושאים לתרגול</CardTitle>
-            </div>
-            <CardDescription>בחר נושא לתרגול או צור תרגיל מותאם אישית</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {practiceTopics.map((topic, index) => (
-                <Card 
-                  key={index} 
-                  className="cursor-pointer hover:bg-muted/50 transition-colors"
-                  onClick={() => handleTopicSelect(topic.prompt)}
-                >
-                  <CardHeader>
-                    <CardTitle className="text-lg">{topic.title}</CardTitle>
-                    <CardDescription>{topic.description}</CardDescription>
-                  </CardHeader>
-                </Card>
-              ))}
-              <Card className="cursor-pointer hover:bg-muted/50 transition-colors">
-                <CardHeader>
-                  <div className="flex items-center gap-2">
-                    <Plus className="w-4 h-4" />
-                    <CardTitle className="text-lg">תרגיל מותאם אישית</CardTitle>
-                  </div>
-                  <CardDescription>
-                    <Textarea
-                      value={prompt}
-                      onChange={(e) => setPrompt(e.target.value)}
-                      placeholder="תאר את סוג התרגיל שברצונך לתרגל..."
-                      className="mt-2 min-h-[80px]"
-                    />
-                    <Button 
-                      onClick={() => handleGenerateAssignment()}
-                      disabled={isSubmitting || !prompt}
-                      className="w-full mt-2"
-                    >
-                      {isSubmitting ? "מייצר תרגיל..." : "צור תרגיל"}
-                    </Button>
-                  </CardDescription>
-                </CardHeader>
-              </Card>
-            </div>
-          </CardContent>
-        </Card>
+      <motion.div
+        variants={container}
+        initial="hidden"
+        animate="show"
+        className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6"
+      >
+        <AnimatePresence mode="popLayout">
+          {topics.map((topic) => {
+            const TopicIcon = topic.icon;
+            const isHovered = hoveredTopic === topic.id;
 
-        {/* Generated Assignment Section */}
-        {generatedAssignment && typeof generatedAssignment === "object" && (
-          <Card>
-            <CardHeader>
-              <CardTitle>{generatedAssignment.title || "תרגיל חדש"}</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <h4 className="font-semibold mb-2">תיאור:</h4>
-                <p>{generatedAssignment.description}</p>
-              </div>
-              <div>
-                <h4 className="font-semibold mb-2">משוואות:</h4>
-                <pre className="bg-muted p-4 rounded-md overflow-x-auto">
-                  {generatedAssignment.equation}
-                </pre>
-              </div>
-              <div>
-                <h4 className="font-semibold mb-2">רמזים:</h4>
-                <ul className="list-disc list-inside space-y-1">
-                  {generatedAssignment.hints.map((hint, index) => (
-                    <li key={index}>{hint}</li>
-                  ))}
-                </ul>
-              </div>
-              <div>
-                <h4 className="font-semibold mb-2">פתרון מלא:</h4>
-                <div className="space-y-2 bg-muted p-4 rounded-md">
-                  {generatedAssignment.solution.steps.map((step, index) => (
-                    <p key={index} className="text-sm">{step}</p>
-                  ))}
-                  <p className="font-medium mt-4 text-primary">
-                    תשובה סופית: x = {generatedAssignment.solution.final_answers.x}, 
-                    y = {generatedAssignment.solution.final_answers.y}
-                  </p>
-                </div>
-              </div>
-              <Button 
-                onClick={() => handleGenerateAssignment(prompt)}
-                className="w-full mt-4"
+            return (
+              <motion.div
+                key={topic.id}
+                variants={item}
+                layout
+                whileHover={{ 
+                  scale: 1.03,
+                  transition: { type: "spring", stiffness: 300, damping: 10 }
+                }}
+                onHoverStart={() => setHoveredTopic(topic.id)}
+                onHoverEnd={() => setHoveredTopic(null)}
+                onClick={() => handleTopicClick(topic.id)}
+                className="cursor-pointer group"
               >
-                צור תרגיל נוסף
-              </Button>
-            </CardContent>
-          </Card>
-        )}
-      </div>
-    </div>
+                <Card className={`relative overflow-hidden border-primary/20 bg-gradient-to-br from-background to-muted/50 hover:shadow-lg transition-all duration-300`}>
+                  <motion.div
+                    className={`absolute inset-0 bg-gradient-to-br ${topic.gradient} opacity-0 group-hover:opacity-100 transition-opacity duration-300`}
+                  />
+                  <CardHeader className="relative">
+                    <CardTitle className={`flex items-center gap-3 ${isRTL ? 'flex-row-reverse' : ''}`}>
+                      <motion.div 
+                        className={`p-2 rounded-xl bg-background/80 backdrop-blur-sm shadow-sm ${topic.color} group-hover:scale-110 transition-transform duration-300`}
+                        whileHover={{ rotate: [0, -10, 10, -10, 0] }}
+                        transition={{ duration: 0.5 }}
+                      >
+                        <TopicIcon className="w-5 h-5" />
+                      </motion.div>
+                      <span className="group-hover:text-primary transition-colors duration-300">
+                        {t(`practice.topics.${topic.id}.title`)}
+                      </span>
+                    </CardTitle>
+                    <CardDescription className={isRTL ? 'text-right' : 'text-left'}>
+                      {t(`practice.topics.${topic.id}.description`)}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="relative pb-4">
+                    <motion.div
+                      animate={{ 
+                        x: isHovered ? (isRTL ? -5 : 5) : 0,
+                        transition: { type: "spring", stiffness: 300, damping: 10 }
+                      }}
+                      className={`flex items-center gap-1 text-sm ${topic.color} ${isRTL ? 'flex-row-reverse' : ''}`}
+                    >
+                      <span>{t('practice.start')}</span>
+                      <ChevronRight className={`w-4 h-4 ${isRTL ? 'rotate-180' : ''} group-hover:translate-x-1 transition-transform duration-300`} />
+                    </motion.div>
+                  </CardContent>
+                </Card>
+              </motion.div>
+            );
+          })}
+        </AnimatePresence>
+      </motion.div>
+    </motion.div>
   );
 }
-
-export default PracticePage;

@@ -5,16 +5,20 @@ import StudentDashboard from "./pages/StudentDashboard";
 import TeacherDashboard from "./pages/TeacherDashboard";
 import AssignmentPage from "./pages/AssignmentPage";
 import AssignmentCreatePage from "./pages/AssignmentCreatePage";
+import StudentAssignmentsPage from "./pages/StudentAssignmentsPage";
 import StudentsPage from "./pages/StudentsPage";
 import PracticePage from "./pages/PracticePage";
+import AdaptivePracticePage from "./pages/AdaptivePracticePage";
 import ProtectedRoute from "./components/ProtectedRoute";
 import { useAuth } from "./providers/auth";
+import ClassesPage from "./pages/ClassesPage";
+import LevelsPage from "./pages/LevelsPage";
 
 function AppRoutes() {
   const { user, loading } = useAuth();
 
   if (loading) {
-    return null; // Let the AuthProvider show the loading state
+    return null;
   }
 
   return (
@@ -53,6 +57,12 @@ function AppRoutes() {
         </ProtectedRoute>
       } />
 
+      <Route path="/assignments" element={
+        <ProtectedRoute allowedRoles={['student']}>
+          <StudentAssignmentsPage />
+        </ProtectedRoute>
+      } />
+
       <Route path="/assignment/create" element={
         <ProtectedRoute allowedRoles={['teacher']}>
           <AssignmentCreatePage />
@@ -71,9 +81,33 @@ function AppRoutes() {
         </ProtectedRoute>
       } />
 
-      <Route path="/practice/student" element={
+      <Route path="/practice" element={
         <ProtectedRoute allowedRoles={['student']}>
           <PracticePage />
+        </ProtectedRoute>
+      } />
+
+      <Route path="/practice/:topicId" element={
+        <ProtectedRoute allowedRoles={['student']}>
+          <AdaptivePracticePage />
+        </ProtectedRoute>
+      } />
+
+      <Route path="/classes" element={
+        <ProtectedRoute allowedRoles={['teacher']}>
+          <ClassesPage />
+        </ProtectedRoute>
+      } />
+
+      <Route path="/levels" element={
+        <ProtectedRoute allowedRoles={['student','teacher']}>
+          <LevelsPage />
+        </ProtectedRoute>
+      } />
+
+      <Route path="/levels/:studentId" element={
+        <ProtectedRoute allowedRoles={['teacher']}>
+          <LevelsPage />
         </ProtectedRoute>
       } />
 

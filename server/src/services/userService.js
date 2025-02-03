@@ -1,10 +1,7 @@
-import { getRepository } from "typeorm";
-import { User } from "../models/User.js";
+import User from "../models/User.js";
 
 export const createUser = async (userData) => {
-  const userRepository = getRepository(User);
-  
-  const user = userRepository.create({
+  const user = new User({
     ...userData,
     badges: [],
     progress: {},
@@ -13,5 +10,5 @@ export const createUser = async (userData) => {
     streak: 0
   });
   
-  return await userRepository.save(user);
+  return await user.save();
 }; 

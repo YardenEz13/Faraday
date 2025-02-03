@@ -1,45 +1,18 @@
 // server/src/models/Assignment.js
 import mongoose from 'mongoose';
 
-const AssignmentSchema = new mongoose.Schema({
+const assignmentSchema = new mongoose.Schema({
   title: {
+    type: Object,
+    required: true,
+    he: String,
+    en: String
+  },
+  topic: {
     type: String,
     required: true
   },
-  description: {
-    type: String,
-    required: true
-  },
-  equation: {
-    type: String,
-    required: true
-  },
-  solution: {
-    steps: [String],
-    answer: String,
-    final_answers: {
-      x: String,
-      y: String
-    }
-  },
-  hints: [String],
-  dueDate: {
-    type: Date,
-    required: true
-  },
-  isCompleted: {
-    type: Boolean,
-    default: false
-  },
-  studentAnswer: {
-    type: String,
-    default: null
-  },
-  isSurrendered: {
-    type: Boolean,
-    default: false
-  },
-  teacher: {
+  teacherId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
     required: true
@@ -48,14 +21,60 @@ const AssignmentSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
     required: true
+  },
+  classId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Class'
+  },
+  questions: [{
+    title: {
+      type: Object,
+      he: String,
+      en: String
+    },
+    description: {
+      type: Object,
+      he: String,
+      en: String
+    },
+    equation: String,
+    solution: {
+      type: mongoose.Schema.Types.Mixed,
+      default: null
+    },
+    hints: [String],
+    studentAnswer: String,
+    isCorrect: Boolean,
+    submittedAt: Date
+  }],
+  currentQuestionIndex: {
+    type: Number,
+    default: 0
+  },
+  status: {
+    type: String,
+    enum: ['active', 'submitted', 'graded'],
+    default: 'active'
+  },
+  dueDate: Date,
+  isLate: {
+    type: Boolean,
+    default: false
+  },
+  grade: Number,
+  submittedAt: Date,
+  createdAt: {
+    type: Date,
+    default: Date.now
   }
-}, {
-  timestamps: true
 });
 
-// Add indexes
-AssignmentSchema.index({ teacher: 1, student: 1 }); // For querying assignments by teacher/student
-AssignmentSchema.index({ dueDate: 1 }); // For querying upcoming assignments
-AssignmentSchema.index({ isCompleted: 1 }); // For querying completed/incomplete assignments
+// Add index for better query performance
+assignmentSchema.index({ teacherId: 1, student: 1, classId: 1 });
+assignmentSchema.index({ student: 1, status: 1 });
+assignmentSchema.index({ classId: 1, status: 1 });
 
-export const Assignment = mongoose.model('Assignment', AssignmentSchema);
+const Assignment = mongoose.model('Assignment', assignmentSchema);
+
+export default Assignment;
+

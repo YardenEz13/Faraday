@@ -1,17 +1,99 @@
 // client/src/pages/StudentDashboard.jsx
-import React, { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
-import { format, isValid } from "date-fns";
-import { getStudentDashboard } from "../services/api";
-import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
-import { Button } from "../components/ui/button";
-import { toast } from "react-hot-toast";
-import { Zap, ClockIcon, CheckCircle, BookOpen, GraduationCap, Trophy, Brain } from "lucide-react";
+import React, { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { getStudentDashboard } from '../services/api';
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { useTranslation } from 'react-i18next';
+import { BookOpen, ClockIcon, CheckCircle, Brain, GraduationCap, Trophy, Zap, Sparkles, Star, Target, Award } from 'lucide-react';
+import { toast } from 'react-hot-toast';
+import { isValid } from 'date-fns';
+import { motion, AnimatePresence } from 'framer-motion';
+import confetti from 'canvas-confetti';
+
+const container = {
+  hidden: { opacity: 0 },
+  show: {
+    opacity: 1,
+    transition: {
+      staggerChildren: 0.1
+    }
+  }
+};
+
+const item = {
+  hidden: { opacity: 0, y: 20 },
+  show: { opacity: 1, y: 0 }
+};
+
+const floatingAnimation = {
+  initial: { y: 0 },
+  animate: {
+    y: [-5, 5, -5],
+    transition: {
+      duration: 4,
+      repeat: Infinity,
+      ease: "easeInOut"
+    }
+  }
+};
+
+const pulseAnimation = {
+  initial: { scale: 1 },
+  animate: {
+    scale: [1, 1.05, 1],
+    transition: {
+      duration: 2,
+      repeat: Infinity,
+      ease: "easeInOut"
+    }
+  }
+};
+
+const glowAnimation = {
+  initial: { opacity: 0.5 },
+  animate: {
+    opacity: [0.5, 1, 0.5],
+    transition: {
+      duration: 2,
+      repeat: Infinity,
+      ease: "easeInOut"
+    }
+  }
+};
+
+const cardHoverAnimation = {
+  rest: { scale: 1, y: 0 },
+  hover: { 
+    scale: 1.02,
+    y: -5,
+    transition: {
+      type: "spring",
+      stiffness: 400,
+      damping: 10
+    }
+  }
+};
+
+const shimmerAnimation = {
+  initial: {
+    backgroundPosition: "-200% 0",
+  },
+  animate: {
+    backgroundPosition: "200% 0",
+    transition: {
+      repeat: Infinity,
+      duration: 2,
+    },
+  },
+};
 
 function StudentDashboard() {
+  const { t, i18n } = useTranslation();
   const [studentData, setStudentData] = useState(null);
   const [assignments, setAssignments] = useState([]);
   const [loading, setLoading] = useState(true);
+  const isRTL = i18n.language === 'he';
 
   useEffect(() => {
     fetchDashboard();
@@ -20,221 +102,437 @@ function StudentDashboard() {
   const fetchDashboard = async () => {
     try {
       const response = await getStudentDashboard();
-      console.log('Dashboard data:', response.data);
+      console.log('Dashboard data:', response);
       
-      // Get student data and assignments from the response
-      const { student, assignments: assignmentsData = [] } = response.data || {};
-      setStudentData(student);
+      // Set student data from the response
+      if (response && response.student) {
+        console.log('Setting student data with math level:', response.student.mathLevel);
+        setStudentData(response.student);
+      } else {
+        console.log('No valid student data found');
+        setStudentData(null);
+      }
       
-      // Filter out assignments with invalid dates and sort by due date
-      const validAssignments = assignmentsData
-        .filter(assignment => {
-          const date = new Date(assignment.dueDate);
-          return isValid(date) && date.getFullYear() >= 2000;
-        })
-        .sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate));
+      // Combine all assignments
+      const allAssignments = [
+        ...(response.activeAssignments || []),
+        ...(response.lateAssignments || []),
+        ...(response.submittedAssignments || [])
+      ];
       
-      setAssignments(validAssignments);
+      setAssignments(allAssignments);
       setLoading(false);
     } catch (error) {
       console.error('Error fetching dashboard:', error);
-      toast.error('Error loading dashboard');
+      toast.error(t('dashboardError'));
       setAssignments([]);
+      setStudentData(null);
       setLoading(false);
     }
   };
 
   if (loading) {
-    return <div className="flex items-center justify-center min-h-screen">Loading...</div>;
+    return (
+      <div className="flex items-center justify-center min-h-[calc(100vh-4rem)]">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      </div>
+    );
   }
 
   const formatDate = (dateString) => {
     try {
-      if (!dateString) return 'Date not available';
+      if (!dateString) return t('dateNotAvailable');
       
       const date = new Date(dateString);
       
       if (!isValid(date) || date.getFullYear() < 2000 || date.getFullYear() > 2100) {
-        return 'Coming soon';
+        return t('comingSoon');
       }
       
-      return format(date, 'dd/MM/yyyy');
+      return new Date(dateString).toLocaleDateString(i18n.language === 'he' ? 'he-IL' : 'en-US');
     } catch (error) {
       console.error('Error formatting date:', error);
-      return 'Coming soon';
+      return t('comingSoon');
     }
   };
 
   // Calculate statistics
   const totalAssignments = assignments.length;
-  const completedAssignments = assignments.filter(a => a.isCompleted).length;
+  const completedAssignments = assignments.filter(a => a.status === 'submitted').length;
   const completionRate = totalAssignments > 0 
     ? Math.round((completedAssignments / totalAssignments) * 100)
     : 0;
 
-  // Separate assignments into active and completed
-  const activeAssignments = assignments.filter(a => !a.isCompleted);
-  const completedAssignmentsList = assignments.filter(a => a.isCompleted);
+  // Separate assignments into categories
+  const activeAssignments = assignments.filter(a => 
+    !a.status || a.status === 'active'
+  );
+  
+  const lateAssignments = assignments.filter(a => 
+    a.isLate && (!a.status || a.status === 'active')
+  );
+  
+  const completedAssignmentsList = assignments.filter(a => 
+    a.status === 'submitted'
+  );
 
   const EmptyState = () => (
-    <Card className="text-center p-6 border-primary/20 dark:border-primary/20">
+    <Card className="text-center p-4 sm:p-6 border-primary/20 bg-background">
       <div className="flex flex-col items-center gap-2 mb-4">
-        <div className="p-3 bg-primary/10 dark:bg-primary/20 rounded-full">
-          <BookOpen className="w-8 h-8 text-primary" />
+        <div className="p-3 bg-primary/10 rounded-full">
+          <BookOpen className="w-6 h-6 sm:w-8 sm:h-8 text-primary" />
         </div>
-        <h2 className="text-xl font-semibold">No Assignments Yet</h2>
-        <p className="text-muted-foreground">
-          You don't have any assignments at the moment.
-          <br />
-          Check back later for new assignments.
+        <h2 className={`text-lg sm:text-xl font-semibold text-foreground ${isRTL ? 'font-yarden' : 'font-inter'}`}>
+          {t('noAssignments')}
+        </h2>
+        <p className={`text-sm sm:text-base text-muted-foreground ${isRTL ? 'font-yarden text-right' : 'font-inter text-left'}`}>
+          {t('noAssignmentsDesc')}
         </p>
       </div>
     </Card>
   );
 
-  const AssignmentCard = ({ assignment }) => (
-    <Card className="border-primary/20 dark:border-primary/20">
-      <CardHeader>
-        <CardTitle>{assignment.title}</CardTitle>
-        <div className="text-sm text-muted-foreground">
-          Due: {formatDate(assignment.dueDate)}
-        </div>
-      </CardHeader>
-      <CardContent>
-        <p className="mb-4 text-muted-foreground line-clamp-2">
-          {assignment.description}
-        </p>
-        <div className="flex justify-between items-center">
-          <Button 
-            asChild
-            variant="outline"
-            className="hover:bg-primary/10 hover:text-primary transition-colors border-primary/20"
-          >
-            <Link to={`/assignment/${assignment._id}`}>
-              {assignment.isCompleted ? 'View Assignment' : 'Start Assignment'}
-            </Link>
-          </Button>
-          {assignment.isCompleted && (
-            <span className="text-green-600 dark:text-green-400 font-medium">Completed ✓</span>
-          )}
-        </div>
-      </CardContent>
-    </Card>
-  );
+  const AssignmentCard = ({ assignment }) => {
+    const displayTitle = typeof assignment.title === 'object' ? 
+      (assignment.title[i18n.language] || assignment.title.en || assignment.title.he) : 
+      (assignment.title || t('untitled'));
+
+    return (
+      <Card className="relative overflow-hidden border-primary/20 bg-gradient-to-br from-background via-background to-primary/5 hover:shadow-xl transition-all duration-300">
+        <motion.div
+          variants={cardHoverAnimation}
+          initial="rest"
+          whileHover="hover"
+          className="relative z-10"
+        >
+          <div className="absolute inset-0 bg-gradient-to-r from-teal-500/10 via-emerald-500/10 to-teal-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+          <CardHeader className="relative border-b border-primary/10">
+            <CardTitle className="flex items-center gap-3">
+              <motion.div
+                className="p-2 rounded-xl bg-primary/10 text-primary"
+                whileHover={{ rotate: [0, -10, 10, -10, 0] }}
+                transition={{ duration: 0.5 }}
+              >
+                <BookOpen className="w-5 h-5 text-primary" />
+              </motion.div>
+              <span className="text-lg font-semibold group-hover:text-primary transition-colors duration-300">
+                {displayTitle}
+              </span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className={`text-sm text-muted-foreground ${isRTL ? 'text-right font-yarden' : 'text-left font-inter'}`}>
+              {t('due')}: {formatDate(assignment.dueDate)}
+            </div>
+            <p className={`mb-4 text-sm text-muted-foreground line-clamp-2 ${isRTL ? 'text-right font-yarden' : 'text-left font-inter'}`}>
+              {assignment.description}
+            </p>
+            <div className={`flex flex-col sm:flex-row gap-3 sm:gap-0 sm:justify-between sm:items-center ${isRTL ? 'sm:flex-row-reverse' : ''}`}>
+              <Button 
+                asChild
+                variant="outline"
+                className={`w-full sm:w-auto order-2 sm:order-1 hover:bg-primary/10 hover:text-primary transition-colors border-primary/20 text-foreground text-sm ${isRTL ? 'font-yarden' : 'font-inter'}`}
+              >
+                <Link to={`/assignment/${assignment._id}`}>
+                  {(assignment.status === 'submitted' || assignment.status === 'graded') ? t('viewAssignment') : t('startAssignment')}
+                </Link>
+              </Button>
+              <div className={`flex items-center justify-end gap-2 order-1 sm:order-2 ${isRTL ? 'flex-row-reverse' : ''}`}>
+                {(assignment.status === 'submitted' || assignment.status === 'graded') && (
+                  <span className="text-sm text-green-600 dark:text-green-400 font-medium">
+                    {t('completed')} ✓
+                  </span>
+                )}
+                {assignment.isLate && (
+                  <span className="text-sm text-red-600 dark:text-red-400 font-medium">
+                    {t('late')}!
+                  </span>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </motion.div>
+        <motion.div
+          className="absolute inset-0 bg-gradient-to-r from-primary/10 via-transparent to-primary/10 opacity-20"
+          variants={shimmerAnimation}
+          initial="initial"
+          animate="animate"
+          style={{
+            backgroundSize: "200% 100%",
+          }}
+        />
+      </Card>
+    );
+  };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-background to-muted/50">
-      <div className="container mx-auto p-6">
+    <motion.div 
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      className="min-h-[calc(100vh-4rem)] bg-gradient-to-b from-background via-background to-primary/5"
+    >
+      <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6">
         {/* Header with Student Info */}
-        <div className="mb-8">
-          <div className="flex justify-between items-center mb-4">
-            <div className="flex items-center gap-2">
-              <Zap className="w-8 h-8 text-primary animate-float" />
-              <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-purple-600 bg-clip-text text-transparent">
-                My Assignments
-              </h1>
-            </div>
-            <Button 
-              asChild
-              variant="outline"
-              className="hover:bg-primary/10 hover:text-primary transition-colors border-primary/20"
+        <motion.div 
+          variants={container}
+          initial="hidden"
+          animate="show"
+          className="mb-6 sm:mb-8"
+        >
+          <div className={`flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 ${isRTL ? 'sm:flex-row-reverse' : ''}`}>
+            <motion.div 
+              variants={item}
+              className={`flex items-center gap-2 ${isRTL ? 'flex-row-reverse' : ''}`}
             >
-              <Link to="/practice/student">
-                <Brain className="w-4 h-4 mr-2" />
-                Practice
-              </Link>
-            </Button>
+              <motion.div
+                variants={floatingAnimation}
+                initial="initial"
+                animate="animate"
+              >
+                <Sparkles className="w-6 h-6 sm:w-8 sm:h-8 text-primary shrink-0" />
+              </motion.div>
+              <h1 className={`text-lg sm:text-3xl font-bold bg-gradient-to-r from-primary via-purple-500 to-primary bg-clip-text text-transparent ${isRTL ? 'font-yarden text-right' : 'font-inter text-left'}`}>
+                {t('myAssignments')}
+              </h1>
+            </motion.div>
+            <motion.div variants={item}>
+              <Button 
+                asChild
+                variant="outline"
+                className={`w-full sm:w-auto group hover:bg-primary hover:text-primary-foreground transition-all duration-300 border-primary/20 text-foreground text-sm ${isRTL ? 'font-yarden' : 'font-inter'}`}
+              >
+                <Link to="/practice" className={`flex items-center gap-2 ${isRTL ? 'flex-row-reverse' : ''}`}>
+                  <motion.div
+                    variants={pulseAnimation}
+                    initial="initial"
+                    animate="animate"
+                    className="w-4 h-4 shrink-0"
+                  >
+                    <Brain className="w-full h-full" />
+                  </motion.div>
+                  {t('nav.practice')} 
+                </Link>
+              </Button>
+            </motion.div>
           </div>
 
           {/* Student Stats */}
-          <div className="grid gap-4 md:grid-cols-3 mb-6">
-            <Card className="p-4 border-primary/20 dark:border-primary/20">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-primary/10 dark:bg-primary/20 rounded-lg">
-                  <GraduationCap className="w-5 h-5 text-primary" />
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Math Level</p>
-                  <p className="text-2xl font-semibold">{studentData?.level || 1}</p>
-                </div>
-              </div>
-            </Card>
+          <motion.div 
+            variants={container}
+            className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8"
+          >
+            <motion.div
+              variants={item}
+              whileHover={{ scale: 1.02 }}
+              className="group"
+            >
+              <Link to="/levels" className="block">
+                <Card className="p-4 border-primary/20 bg-gradient-to-br from-background to-primary/5 hover:shadow-lg hover:shadow-primary/10 transition-all duration-300 cursor-pointer group">
+                  <div className={`flex items-center gap-3 ${isRTL ? 'flex-row-reverse' : ''}`}>
+                    <motion.div 
+                      variants={glowAnimation}
+                      initial="initial"
+                      animate="animate"
+                      className="p-2 bg-primary/10 rounded-lg shrink-0 group-hover:bg-primary/20 transition-colors duration-300"
+                    >
+                      <Target className="w-5 h-5 text-primary" />
+                    </motion.div>
+                    <div className={`${isRTL ? 'font-yarden text-right' : 'font-inter text-left'}`}>
+                      <p className="text-sm text-muted-foreground">{t('mathLevel')}</p>
+                      <motion.p 
+                        className="text-xl sm:text-2xl font-semibold text-foreground"
+                        variants={pulseAnimation}
+                        initial="initial"
+                        animate="animate"
+                      >
+                        {studentData?.mathLevel ? Number(studentData.mathLevel).toFixed(1) : '1.0'}
+                      </motion.p>
+                    </div>
+                  </div>
+                </Card>
+              </Link>
+            </motion.div>
 
-            <Card className="p-4 border-primary/20 dark:border-primary/20">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-primary/10 dark:bg-primary/20 rounded-lg">
-                  <Trophy className="w-5 h-5 text-primary" />
+            <motion.div
+              variants={item}
+              whileHover={{ scale: 1.02 }}
+              className="group"
+            >
+              <Card className="p-4 border-primary/20 bg-gradient-to-br from-background to-primary/5 hover:shadow-lg hover:shadow-primary/10 transition-all duration-300">
+                <div className={`flex items-center gap-3 ${isRTL ? 'flex-row-reverse' : ''}`}>
+                  <motion.div 
+                    variants={glowAnimation}
+                    initial="initial"
+                    animate="animate"
+                    className="p-2 bg-primary/10 rounded-lg shrink-0 group-hover:bg-primary/20 transition-colors duration-300"
+                  >
+                    <Trophy className="w-5 h-5 text-primary" />
+                  </motion.div>
+                  <div className={`${isRTL ? 'font-yarden text-right' : 'font-inter text-left'}`}>
+                    <p className="text-sm text-muted-foreground">{t('completionRate')}</p>
+                    <motion.p 
+                      className="text-xl sm:text-2xl font-semibold text-foreground"
+                      variants={pulseAnimation}
+                      initial="initial"
+                      animate="animate"
+                    >
+                      {completionRate}%
+                    </motion.p>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Completion Rate</p>
-                  <p className="text-2xl font-semibold">{completionRate}%</p>
-                </div>
-              </div>
-            </Card>
+              </Card>
+            </motion.div>
 
-            <Card className="p-4 border-primary/20 dark:border-primary/20">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-primary/10 dark:bg-primary/20 rounded-lg">
-                  <BookOpen className="w-5 h-5 text-primary" />
+            <motion.div
+              variants={item}
+              whileHover={{ scale: 1.02 }}
+              className="group"
+            >
+              <Card className="p-4 border-primary/20 bg-gradient-to-br from-background to-primary/5 hover:shadow-lg hover:shadow-primary/10 transition-all duration-300">
+                <div className={`flex items-center gap-3 ${isRTL ? 'flex-row-reverse' : ''}`}>
+                  <motion.div 
+                    variants={glowAnimation}
+                    initial="initial"
+                    animate="animate"
+                    className="p-2 bg-primary/10 rounded-lg shrink-0 group-hover:bg-primary/20 transition-colors duration-300"
+                  >
+                    <Award className="w-5 h-5 text-primary" />
+                  </motion.div>
+                  <div className={`${isRTL ? 'font-yarden text-right' : 'font-inter text-left'}`}>
+                    <p className="text-sm text-muted-foreground">{t('completedAssignments')}</p>
+                    <motion.p 
+                      className="text-xl sm:text-2xl font-semibold text-foreground"
+                      variants={pulseAnimation}
+                      initial="initial"
+                      animate="animate"
+                    >
+                      {completedAssignments}
+                    </motion.p>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Assignments</p>
-                  <p className="text-2xl font-semibold">
-                    <span className="text-green-600 dark:text-green-400">{completedAssignments}</span>
-                    {' / '}
-                    {totalAssignments}
-                  </p>
+              </Card>
+            </motion.div>
+
+            <motion.div
+              variants={item}
+              whileHover={{ scale: 1.02 }}
+              className="group"
+            >
+              <Card className="p-4 border-primary/20 bg-gradient-to-br from-background to-primary/5 hover:shadow-lg hover:shadow-primary/10 transition-all duration-300">
+                <div className={`flex items-center gap-3 ${isRTL ? 'flex-row-reverse' : ''}`}>
+                  <motion.div 
+                    variants={glowAnimation}
+                    initial="initial"
+                    animate="animate"
+                    className="p-2 bg-primary/10 rounded-lg shrink-0 group-hover:bg-primary/20 transition-colors duration-300"
+                  >
+                    <Zap className="w-5 h-5 text-primary" />
+                  </motion.div>
+                  <div className={`${isRTL ? 'font-yarden text-right' : 'font-inter text-left'}`}>
+                    <p className="text-sm text-muted-foreground">{t('totalAssignments')}</p>
+                    <motion.p 
+                      className="text-xl sm:text-2xl font-semibold text-foreground"
+                      variants={pulseAnimation}
+                      initial="initial"
+                      animate="animate"
+                    >
+                      {totalAssignments}
+                    </motion.p>
+                  </div>
                 </div>
-              </div>
-            </Card>
+              </Card>
+            </motion.div>
+          </motion.div>
+
+          {/* Topic Levels */}
+          <div className="mt-6">
+            <div className={`flex items-center gap-2 mb-4 ${isRTL ? 'flex-row-reverse' : ''}`}>
+              <Brain className="w-5 h-5 text-primary shrink-0" />
+              <h2 className={`text-base sm:text-xl font-semibold text-foreground ${isRTL ? 'font-yarden text-right' : 'font-inter text-left'}`}>
+                {t('practice.title')}
+              </h2>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {Object.entries(studentData?.topicLevels || {}).sort().map(([topic, level]) => {
+                // Skip if level is undefined or null
+                if (!level) return null;
+                
+                return (
+                  <Card key={topic} className="p-4 border-primary/20 bg-background">
+                    <div className={`flex items-center gap-3 ${isRTL ? 'flex-row-reverse' : ''}`}>
+                      <div className="p-2 bg-primary/10 rounded-lg shrink-0">
+                        <Brain className="w-5 h-5 text-primary" />
+                      </div>
+                      <div className={`${isRTL ? 'font-yarden text-right' : 'font-inter text-left'}`}>
+                        <p className="text-sm text-muted-foreground">{t(`practice.topics.${topic}.title`)}</p>
+                        <p className="text-xl sm:text-2xl font-semibold text-foreground">{Number(level).toFixed(1)}</p>
+                      </div>
+                    </div>
+                  </Card>
+                );
+              })}
+            </div>
           </div>
-        </div>
+        </motion.div>
 
         {assignments.length === 0 ? (
           <EmptyState />
         ) : (
           <>
             {/* Active Assignments Section */}
-            <div className="mb-8">
-              <div className="flex items-center gap-2 mb-4">
-                <ClockIcon className="w-5 h-5 text-yellow-500" />
-                <h2 className="text-xl font-semibold">Active Assignments</h2>
+            {activeAssignments.length > 0 && (
+              <div className="mb-6 sm:mb-8">
+                <div className={`flex items-center gap-2 mb-4 ${isRTL ? 'flex-row-reverse' : ''}`}>
+                  <ClockIcon className="w-5 h-5 text-yellow-500 shrink-0" />
+                  <h2 className={`text-base sm:text-xl font-semibold text-foreground ${isRTL ? 'font-yarden text-right' : 'font-inter text-left'}`}>
+                    {t('activeAssignments')}
+                  </h2>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {activeAssignments.map((assignment) => (
+                    <AssignmentCard key={`active-${assignment._id}`} assignment={assignment} />
+                  ))}
+                </div>
               </div>
-              <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-                {activeAssignments.length > 0 ? (
-                  activeAssignments.map((assignment) => (
-                    <AssignmentCard key={assignment._id} assignment={assignment} />
-                  ))
-                ) : (
-                  <div className="col-span-full text-center text-muted-foreground py-8">
-                    No active assignments
-                  </div>
-                )}
+            )}
+
+            {/* Late Assignments Section */}
+            {lateAssignments.length > 0 && (
+              <div className="mb-6 sm:mb-8">
+                <div className={`flex items-center gap-2 mb-4 ${isRTL ? 'flex-row-reverse' : ''}`}>
+                  <ClockIcon className="w-5 h-5 text-red-500 shrink-0" />
+                  <h2 className={`text-base sm:text-xl font-semibold text-foreground ${isRTL ? 'font-yarden text-right' : 'font-inter text-left'}`}>
+                    {t('lateAssignments')}
+                  </h2>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {lateAssignments.map((assignment) => (
+                    <AssignmentCard key={`late-${assignment._id}`} assignment={assignment} />
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
 
             {/* Completed Assignments Section */}
-            <div>
-              <div className="flex items-center gap-2 mb-4">
-                <CheckCircle className="w-5 h-5 text-green-500" />
-                <h2 className="text-xl font-semibold">Assignment History</h2>
+            {completedAssignmentsList.length > 0 && (
+              <div className="mb-6 sm:mb-8">
+                <div className={`flex items-center gap-2 mb-4 ${isRTL ? 'flex-row-reverse' : ''}`}>
+                  <CheckCircle className="w-5 h-5 text-green-500 shrink-0" />
+                  <h2 className={`text-base sm:text-xl font-semibold text-foreground ${isRTL ? 'font-yarden text-right' : 'font-inter text-left'}`}>
+                    {t('assignmentHistory')}
+                  </h2>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {completedAssignmentsList.map((assignment) => (
+                    <AssignmentCard key={`completed-${assignment._id}`} assignment={assignment} />
+                  ))}
+                </div>
               </div>
-              <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-                {completedAssignmentsList.length > 0 ? (
-                  completedAssignmentsList.map((assignment) => (
-                    <AssignmentCard key={assignment._id} assignment={assignment} />
-                  ))
-                ) : (
-                  <div className="col-span-full text-center text-muted-foreground py-8">
-                    No completed assignments
-                  </div>
-                )}
-              </div>
-            </div>
+            )}
           </>
         )}
       </div>
-    </div>
+    </motion.div>
   );
 }
 

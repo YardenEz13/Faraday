@@ -1,326 +1,434 @@
-import React, { useEffect, useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
-import { getAssignment, submitAssignmentAnswer, deleteAssignment } from "../services/api";
-import { Card, CardHeader, CardTitle, CardContent } from "../components/ui/card";
+import React, { useState, useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
-import { format, isValid, parseISO } from "date-fns";
+import { ArrowLeft, HelpCircle, BookOpen, Brain, Sparkles, Target, Award } from "lucide-react";
 import { toast } from "react-hot-toast";
-import { useAuth } from "../providers/auth";
+import { getAssignment, submitAssignmentAnswer, getAssignmentHint, submitAssignment } from '../services/api';
+import { useTranslation } from 'react-i18next';
+import { Label } from "../components/ui/label";
+import { motion, AnimatePresence } from 'framer-motion';
+import confetti from 'canvas-confetti';
 
-/**
- * AssignmentPage
- * מציג תרגיל ספציפי לתלמיד ומאפשר לו להגיש פתרון
- */
+const container = {
+  hidden: { opacity: 0 },
+  show: {
+    opacity: 1,
+    transition: {
+      staggerChildren: 0.1
+    }
+  }
+};
+
+const item = {
+  hidden: { opacity: 0, y: 20 },
+  show: { opacity: 1, y: 0 }
+};
+
+const floatingAnimation = {
+  initial: { y: 0 },
+  animate: {
+    y: [-5, 5, -5],
+    transition: {
+      duration: 4,
+      repeat: Infinity,
+      ease: "easeInOut"
+    }
+  }
+};
+
+const pulseAnimation = {
+  initial: { scale: 1 },
+  animate: {
+    scale: [1, 1.05, 1],
+    transition: {
+      duration: 2,
+      repeat: Infinity,
+      ease: "easeInOut"
+    }
+  }
+};
+
 function AssignmentPage() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { t, i18n } = useTranslation();
+  const isRTL = i18n.language === 'he';
+  
   const [assignment, setAssignment] = useState(null);
-  const [answers, setAnswers] = useState({ x: "", y: "" });
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [currentQuestion, setCurrentQuestion] = useState(null);
+  const [userAnswer, setUserAnswer] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
+  const [showSolution, setShowSolution] = useState(false);
+  const [hint, setHint] = useState(null);
+  const [isGettingHint, setIsGettingHint] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (id) {
-      fetchAssignment();
+    console.log('Assignment ID from URL:', id);
+    if (!id) {
+      console.error('No assignment ID provided');
+      toast.error(t('assignments.invalidId'));
+      navigate('/assignments');
+      return;
     }
-  }, [id]);
+    fetchAssignment();
+  }, [id, navigate, t]);
 
   const fetchAssignment = async () => {
     try {
-      if (!id) {
-        navigate('/dashboard/student');
+      setLoading(true);
+      const response = await getAssignment(id);
+      
+      console.log('Fetching assignment with ID:', id);
+      console.log('Assignment response:', response);
+      
+      if (!response) {
+        console.error('No assignment found');
+        toast.error(t('assignments.notFound'));
+        
         return;
       }
-
-      console.log('Fetching assignment with ID:', id);
-      const response = await getAssignment(id);
-      console.log('Assignment data:', response.data);
       
-      // Ensure equation is properly formatted
-      const assignmentData = {
-        ...response.data,
-        equation: response.data.equation || "לא נמצאו משוואות"
-      };
+      // Set the current question from the questions array
+      const currentQ = response.questions?.length ? 
+        response.questions[response.currentQuestionIndex || 0] :
+        // Handle old format assignments
+        {
+          equation: response.equation,
+          solution: response.solution,
+          hints: response.hints,
+          description: response.description,
+          studentAnswer: response.studentAnswer,
+          isCorrect: response.isCompleted
+        };
       
-      setAssignment(assignmentData);
-      setLoading(false);
+      console.log('Current question:', currentQ);
+      
+      setAssignment(response);
+      setCurrentQuestion(currentQ);
     } catch (error) {
-      console.error('Error fetching assignment:', error.response?.data || error);
-      setError(error.response?.data?.message || error.message);
+      console.error('Error fetching assignment:', error);
+      toast.error(t('assignments.errorFetching'));
+      navigate('/assignments');
+    } finally {
       setLoading(false);
-      
-      // If assignment not found, redirect back to dashboard
-      if (error.response?.status === 404) {
-        toast.error('התרגיל לא נמצא');
-        navigate('/dashboard/student');
-      }
     }
+  };
+
+  // Get the display title based on the current language
+  const displayTitle = assignment?.title?.[i18n.language] || assignment?.title?.en || assignment?.title?.he || t('untitled');
+
+  const fireConfetti = () => {
+    const count = 200;
+    const defaults = {
+      origin: { y: 0.7 }
+    };
+
+    function fire(particleRatio, opts) {
+      confetti({
+        ...defaults,
+        ...opts,
+        particleCount: Math.floor(count * particleRatio)
+      });
+    }
+
+    fire(0.25, {
+      spread: 26,
+      startVelocity: 55,
+    });
+
+    fire(0.2, {
+      spread: 60,
+    });
+
+    fire(0.35, {
+      spread: 100,
+      decay: 0.91,
+      scalar: 0.8
+    });
+
+    fire(0.1, {
+      spread: 120,
+      startVelocity: 25,
+      decay: 0.92,
+      scalar: 1.2
+    });
+
+    fire(0.1, {
+      spread: 120,
+      startVelocity: 45,
+    });
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
-    console.log('Starting submission process...');
-    console.log('Original equations:', assignment.equation);
-    
-    if (!answers.x || !answers.y) {
-      toast.error("אנא מלא את שני הערכים");
+    if (!userAnswer.trim()) {
+      toast.error(t('pleaseEnterAnswer'));
       return;
     }
 
     try {
       setIsSubmitting(true);
       
-      // Parse numbers
-      const x = parseFloat(answers.x);
-      const y = parseFloat(answers.y);
-      
-      // Get coefficients from the equations
-      const equations = assignment.equation.split('\n');
-      console.log('Split equations:', equations);
-      
-      const [eq1, eq2] = equations.map(eq => {
-        // Parse equation like "ax + by = c"
-        const parts = eq.split('=').map(part => part.trim());
-        const rightSide = parseFloat(parts[1]);
-        const leftSide = parts[0].split('+').map(term => term.trim());
-        
-        const xTerm = leftSide.find(term => term.includes('x')) || '0x';
-        const yTerm = leftSide.find(term => term.includes('y')) || '0y';
-        
-        const a = parseFloat(xTerm.replace('x', '')) || 0;
-        const b = parseFloat(yTerm.replace('y', '')) || 0;
-        
-        console.log('Parsed equation:', {
-          original: eq,
-          coefficients: { a, b, c: rightSide },
-          terms: { xTerm, yTerm }
-        });
-        
-        return { a, b, c: rightSide };
-      });
-
-      // Calculate exact solution using Cramer's rule
-      const det = (eq1.a * eq2.b) - (eq1.b * eq2.a);
-      const detX = (eq1.c * eq2.b) - (eq1.b * eq2.c);
-      const detY = (eq1.a * eq2.c) - (eq2.a * eq1.c);
-      
-      const exactX = detX / det;
-      const exactY = detY / det;
-
-      console.log('=== Equation Analysis ===');
-      console.log('Equation 1:', `${eq1.a}x + ${eq1.b}y = ${eq1.c}`);
-      console.log('Equation 2:', `${eq2.a}x + ${eq2.b}y = ${eq2.c}`);
-      console.log('Determinants:', { det, detX, detY });
-      console.log('Exact solution:', { x: exactX, y: exactY });
-      
-      // Verify solution by substituting back
-      const eq1Result = eq1.a * x + eq1.b * y;
-      const eq2Result = eq2.a * x + eq2.b * y;
-      
-      console.log('Solution verification:', {
-        equation1: {
-          left: eq1Result,
-          right: eq1.c,
-          difference: Math.abs(eq1Result - eq1.c)
-        },
-        equation2: {
-          left: eq2Result,
-          right: eq2.c,
-          difference: Math.abs(eq2Result - eq2.c)
-        }
-      });
-      
-      // Try different formats for the answer
-      const formats = [
-        `x=${x}, y=${y}`,
-        `x=${x.toFixed(1)}, y=${y.toFixed(1)}`,
-        `x=${x.toFixed(2)}, y=${y.toFixed(2)}`,
-        `x=${Math.round(x)}, y=${Math.round(y)}`,
-        // Try without spaces
-        `x=${x},y=${y}`,
-        `x=${x.toFixed(1)},y=${y.toFixed(1)}`,
-        `x=${x.toFixed(2)},y=${y.toFixed(2)}`,
-        `x=${Math.round(x)},y=${Math.round(y)}`
-      ];
-      
-      console.log('Trying different formats:', formats);
-      
-      // Try each format
-      for (const format of formats) {
-        console.log(`Trying format: ${format}`);
-        try {
-          const response = await submitAssignmentAnswer(id, format);
-          console.log(`Response for format ${format}:`, response.data);
-          if (response.data.isCorrect) {
-            toast.success("כל הכבוד! התשובה נכונה!");
-            navigate('/dashboard/student');
-            return;
-          }
-        } catch (error) {
-          console.error(`Error with format ${format}:`, error);
+      // Validate answer format for probability questions
+      if (currentQuestion?.equation?.includes('P(')) {
+        const numValue = parseFloat(userAnswer);
+        if (isNaN(numValue) || numValue < 0 || numValue > 1) {
+          toast.error(t('practice.probabilityInputFormat'));
+          return;
         }
       }
+
+      const response = await submitAssignmentAnswer(id, userAnswer.trim());
+      console.log('Submit response:', response);
       
-      // If we got here, none of the formats worked
-      toast.error(`התשובה לא נכונה. נסה שוב.
-        התשובה שלך: x=${x}, y=${y}
-        התשובה המחושבת: x=${exactX}, y=${exactY}`);
-      setAnswers({ x: "", y: "" });
-      
+      if (response.isCorrect) {
+        fireConfetti();
+        toast.success(t('practice.messages.correct'));
+        setShowSolution(true);
+        
+        // Update current question with solution
+        if (response.solution) {
+          setCurrentQuestion(prev => ({
+            ...prev,
+            solution: response.solution
+          }));
+        }
+
+        // Check if this was the last question
+        if (!response.nextQuestion) {
+          try {
+            const submitResponse = await submitAssignment(id);
+            console.log('Assignment submit response:', submitResponse);
+            
+            toast.success(t('submitted'), {
+              duration: 5000
+            });
+            
+            setTimeout(() => {
+              navigate('/assignments');
+            }, 3000);
+            
+            return;
+          } catch (submitError) {
+            console.error('Error submitting assignment:', submitError);
+            toast.error(t('assignments.errorSubmitting'));
+          }
+        } else {
+          // Move to next question after delay
+          setTimeout(() => {
+            setCurrentQuestion(response.nextQuestion);
+            setShowSolution(false);
+            setUserAnswer('');
+            setHint(null);
+          }, 2000);
+        }
+      } else {
+        toast.error(t('practice.incorrect'));
+        setUserAnswer('');
+      }
     } catch (error) {
-      console.error('Submission error:', {
-        error: error,
-        response: error.response,
-        data: error.response?.data
-      });
-      toast.error(error.response?.data?.message || "שגיאה בשליחת התשובה");
+      console.error('Error submitting answer:', error);
+      const errorMessage = error.response?.data?.message || t('assignments.errorSubmitting');
+      toast.error(errorMessage);
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const handleDelete = async () => {
-    if (!window.confirm('האם אתה בטוח שברצונך למחוק את המטלה?')) {
-      return;
-    }
-
+  const handleGetHint = async () => {
     try {
-      setIsDeleting(true);
-      await deleteAssignment(id);
-      toast.success('המטלה נמחקה בהצלחה');
-      navigate('/dashboard/teacher');
+      setIsGettingHint(true);
+      const response = await getAssignmentHint(id);
+      console.log('Hint response:', response);
+      
+      // Handle both response formats
+      const hintData = response.data?.data || response.data;
+      if (!hintData || !hintData.hint) {
+        throw new Error('Invalid hint data received');
+      }
+
+      setHint({
+        text: hintData.hint,
+        number: hintData.hintNumber || 1,
+        total: hintData.totalHints || 1
+      });
+      toast.success(t('practice.hintReceived'));
     } catch (error) {
-      console.error('Error deleting assignment:', error);
-      toast.error(error.response?.data?.error || 'שגיאה במחיקת המטלה');
+      console.error('Error getting hint:', error);
+      toast.error(t('assignments.errorGettingHint'));
     } finally {
-      setIsDeleting(false);
+      setIsGettingHint(false);
     }
   };
 
-  if (loading) return <div className="flex items-center justify-center min-h-screen">טוען...</div>;
-  if (error) return <div className="flex items-center justify-center min-h-screen text-red-500">שגיאה: {error}</div>;
-  if (!assignment) return <div className="flex items-center justify-center min-h-screen">לא נמצא תרגיל</div>;
-
-  // Format equations for display
-  const equations = assignment.equation
-    ? assignment.equation
-        .split('\n')
-        .filter(eq => eq.trim()) // Remove empty lines
-        .map((eq, i) => (
-          <div key={i} className="text-2xl font-mono my-4 text-center bg-white dark:bg-gray-800 p-4 rounded-lg shadow" dir="ltr">
-            {eq.includes('=') ? eq : `${eq} = 0`}
-          </div>
-        ))
-    : [];
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
 
   return (
-    <div className="container mx-auto p-6">
-      <div className="flex justify-between items-center mb-6">
-        <Button 
-          variant="outline"
-          onClick={() => navigate(-1)}
+    <motion.div 
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      className="min-h-screen bg-gradient-to-b from-background via-background to-primary/5"
+    >
+      <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6">
+        {/* Assignment Header */}
+        <motion.div 
+          variants={container}
+          initial="hidden"
+          animate="show"
+          className="mb-6"
         >
-          חזור
-        </Button>
-        
-        {user.role === 'teacher' && (
-          <Button 
-            variant="destructive"
-            onClick={handleDelete}
-            disabled={isDeleting}
-          >
-            {isDeleting ? 'מוחק...' : 'מחק מטלה'}
-          </Button>
-        )}
+          <div className={`flex items-center gap-2 mb-4 ${isRTL ? 'flex-row-reverse' : ''}`}>
+            <Button 
+              variant="ghost" 
+              size="icon"
+              onClick={() => navigate(-1)}
+              className="shrink-0"
+            >
+              <ArrowLeft className="w-5 h-5" />
+            </Button>
+            <motion.div
+              variants={floatingAnimation}
+              initial="initial"
+              animate="animate"
+              className="shrink-0"
+            >
+              <BookOpen className="w-6 h-6 sm:w-8 sm:h-8 text-primary" />
+            </motion.div>
+            <h1 className={`text-lg sm:text-2xl font-bold text-foreground ${isRTL ? 'font-yarden text-right' : 'font-inter text-left'}`}>
+              {displayTitle}
+            </h1>
+          </div>
+
+          {currentQuestion && (
+            <Card className="border-primary/20 bg-gradient-to-br from-background to-primary/5">
+              <CardHeader>
+                <CardTitle className={`text-base sm:text-lg text-foreground ${isRTL ? 'text-right font-yarden' : 'text-left font-inter'}`}>
+                  {currentQuestion.description}
+                </CardTitle>
+                <CardDescription className={`whitespace-pre-wrap font-mono text-base ${isRTL ? 'text-right' : 'text-left'}`}>
+                  {currentQuestion.equation}
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <form onSubmit={handleSubmit} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label className={`text-sm font-medium ${isRTL ? 'text-right font-yarden block' : 'text-left font-inter'}`}>
+                      {t('practice.yourAnswer')}
+                    </Label>
+                    <Input
+                      type="text"
+                      value={userAnswer}
+                      onChange={(e) => setUserAnswer(e.target.value)}
+                      placeholder={t('practice.enterAnswer')}
+                      className={`bg-background ${isRTL ? 'text-right font-yarden' : 'text-left font-inter'}`}
+                      disabled={isSubmitting || showSolution}
+                    />
+                  </div>
+
+                  <div className={`flex flex-col sm:flex-row gap-3 ${isRTL ? 'sm:flex-row-reverse' : ''}`}>
+                    <Button
+                      type="submit"
+                      disabled={isSubmitting || showSolution}
+                      className={`w-full sm:w-auto group hover:bg-primary hover:text-primary-foreground transition-all duration-200 ${isRTL ? 'font-yarden' : 'font-inter'}`}
+                    >
+                      <motion.div
+                        variants={pulseAnimation}
+                        initial="initial"
+                        animate="animate"
+                        className="w-4 h-4 mr-2"
+                      >
+                        <Target className="w-full h-full" />
+                      </motion.div>
+                      {t('practice.submit')}
+                    </Button>
+
+                    {!showSolution && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={handleGetHint}
+                        disabled={isGettingHint || showSolution}
+                        className={`w-full sm:w-auto group hover:bg-primary/10 hover:text-primary transition-all duration-200 ${isRTL ? 'font-yarden' : 'font-inter'}`}
+                      >
+                        <HelpCircle className="w-4 h-4 mr-2 group-hover:rotate-12 transition-transform duration-200" />
+                        {t('practice.getHint')}
+                      </Button>
+                    )}
+                  </div>
+                </form>
+
+                <AnimatePresence>
+                  {hint && !showSolution && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -20 }}
+                      className="mt-4"
+                    >
+                      <div className="mt-4 p-4 bg-gray-50 rounded-lg">
+                        <p className="font-semibold mb-2">{t('practice.hint', { number: hint.number })}</p>
+                        <p>{hint.text}</p>
+                        {hint.total > hint.number && (
+                          <p className="text-sm text-gray-500 mt-2">
+                            {t('practice.remainingHints', { count: hint.total - hint.number })}
+                          </p>
+                        )}
+                      </div>
+                    </motion.div>
+                  )}
+
+                  {showSolution && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -20 }}
+                      className="mt-4"
+                    >
+                      <Card className="border-primary/20 bg-background">
+                        <CardHeader>
+                          <CardTitle className={`text-sm font-medium ${isRTL ? 'text-right font-yarden' : 'text-left font-inter'}`}>
+                            {t('practice.solution')}
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <div className={`space-y-2 ${isRTL ? 'text-right font-yarden' : 'text-left font-inter'}`}>
+                            {typeof currentQuestion.solution === 'object' && currentQuestion.solution.steps ? (
+                              <>
+                                {currentQuestion.solution.steps.map((step, index) => (
+                                  <p key={index} className="text-sm text-muted-foreground">
+                                    {index + 1}. {step}
+                                  </p>
+                                ))}
+                                <p className="text-sm font-medium text-foreground mt-4">
+                                  {t('practice.finalAnswer')}: {currentQuestion.solution.answer}
+                                </p>
+                              </>
+                            ) : (
+                              <p className="text-sm text-muted-foreground">
+                                {currentQuestion.solution}
+                              </p>
+                            )}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </CardContent>
+            </Card>
+          )}
+        </motion.div>
       </div>
-
-      <Card className="mb-6">
-        <CardHeader>
-          <CardTitle className="text-2xl">{assignment.title}</CardTitle>
-          <div className="text-sm text-muted-foreground">
-            תאריך הגשה: {assignment.dueDate ? (
-              isValid(parseISO(assignment.dueDate)) 
-                ? format(parseISO(assignment.dueDate), 'dd/MM/yyyy')
-                : 'תאריך לא תקין'
-              ) : 'תאריך לא נקבע'}
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="prose dark:prose-invert max-w-none">
-            <div className="mb-6">
-              <h3 className="text-lg font-semibold mb-2">תיאור התרגיל:</h3>
-              <p className="text-lg">{assignment.description}</p>
-            </div>
-
-            <div className="mb-8">
-              <h3 className="text-lg font-semibold mb-4">מערכת המשוואות:</h3>
-              <div className="bg-muted p-6 rounded-lg shadow-inner">
-                {equations.length > 0 ? equations : (
-                  <div className="text-center text-muted-foreground">לא נמצאו משוואות</div>
-                )}
-              </div>
-            </div>
-
-            {assignment.hints && assignment.hints.length > 0 && (
-              <div className="mt-8 bg-yellow-50 dark:bg-yellow-900/20 p-6 rounded-lg">
-                <h3 className="text-lg font-semibold mb-4">רמזים:</h3>
-                <ul className="list-disc list-inside space-y-3">
-                  {assignment.hints.map((hint, index) => (
-                    <li key={index} className="text-lg text-yellow-800 dark:text-yellow-200">{hint}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
-
-            <form onSubmit={handleSubmit} className="space-y-6 mt-8">
-              <div className="grid grid-cols-2 gap-6">
-                <div className="bg-muted p-4 rounded-lg">
-                  <label className="block text-lg font-medium mb-2 text-center">
-                    X = 
-                  </label>
-                  <Input
-                    type="number"
-                    step="any"
-                    value={answers.x}
-                    onChange={(e) => setAnswers(prev => ({ ...prev, x: e.target.value }))}
-                    placeholder="הזן ערך ל-X"
-                    className="w-full text-center text-xl"
-                    dir="ltr"
-                  />
-                </div>
-                <div className="bg-muted p-4 rounded-lg">
-                  <label className="block text-lg font-medium mb-2 text-center">
-                    Y = 
-                  </label>
-                  <Input
-                    type="number"
-                    step="any"
-                    value={answers.y}
-                    onChange={(e) => setAnswers(prev => ({ ...prev, y: e.target.value }))}
-                    placeholder="הזן ערך ל-Y"
-                    className="w-full text-center text-xl"
-                    dir="ltr"
-                  />
-                </div>
-              </div>
-
-              <Button 
-                type="submit"
-                disabled={isSubmitting || !answers.x || !answers.y}
-                className="w-full text-lg py-6"
-              >
-                {isSubmitting ? "בודק..." : "שלח תשובה"}
-              </Button>
-            </form>
-          </div>
-        </CardContent>
-      </Card>
-    </div>
+    </motion.div>
   );
 }
 

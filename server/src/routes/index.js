@@ -5,6 +5,8 @@ import { userRoutes } from "./userRoutes.js";
 import { dashboardRoutes } from "./dashboardRoutes.js";
 import { assignmentRoutes } from "./assignmentRoutes.js";
 import { practiceRoutes } from "./practiceRoutes.js";
+import { aiRoutes } from "./aiRoutes.js";
+import { classRoutes } from "./classRoutes.js";
 
 const router = express.Router();
 
@@ -14,5 +16,7 @@ router.use("/user", userRoutes);
 router.use("/dashboard", dashboardRoutes);
 router.use("/assignments", assignmentRoutes);
 router.use("/practice", practiceRoutes);
+router.use('/ai', aiRoutes);
+router.use('/classes', classRoutes);
 
 export { router };
