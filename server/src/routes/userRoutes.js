@@ -1,150 +1,108 @@
 import express from "express";
-import { createUser, assignTeacherToStudent, getTeacherStudents } from "../controllers/userController.js";
-import { authMiddleware } from "../middleware/authMiddleware.js";
-import { AppDataSource } from "../config/database.js";
+import { createUser, getUser, updateUser, searchUnassignedStudents, assignTeacherToStudent } from "../controllers/userController.js";
+import { authenticateToken } from "../middleware/auth.js";
 import { User } from "../models/User.js";
 import { Assignment } from "../models/Assignment.js";
 
 const router = express.Router();
 
-// הוספת משתמש חדש
-router.post("/users", async (req, res) => {
+// Get user profile
+router.get("/profile", authenticateToken, async (req, res) => {
   try {
-    const userData = req.body;
-    const newUser = await createUser(userData);
-    res.status(201).json({
-      message: "User created successfully",
-      user: {
-        id: newUser.id,
-        email: newUser.email,
-        username: newUser.username,
-        role: newUser.role
-      }
-    });
+    const user = await getUser(req.user.id);
+    res.json(user);
   } catch (error) {
+    console.error('Failed to get user profile:', error);
     res.status(400).json({ error: error.message });
   }
 });
 
-// קישור תלמיד למורה
-router.post("/assign-teacher", async (req, res) => {
+// Update user profile
+router.put("/profile", authenticateToken, async (req, res) => {
   try {
-    const { studentId, teacherId } = req.body;
-    await assignTeacherToStudent(studentId, teacherId);
-    res.json({ message: "Teacher assigned successfully" });
+    const updatedUser = await updateUser(req.user.id, req.body);
+    res.json(updatedUser);
   } catch (error) {
+    console.error('Failed to update user profile:', error);
     res.status(400).json({ error: error.message });
   }
 });
 
-// שליפת תלמידים של מורה
-router.get("/teacher-students/:teacherId", async (req, res) => {
+// Assign student to teacher
+router.post("/assign-student/:studentId", authenticateToken, async (req, res) => {
+  if (req.user.role !== 'teacher') {
+    return res.status(403).json({ error: "Only teachers can assign students" });
+  }
+  await assignTeacherToStudent(req, res);
+});
+
+// Get teacher's students
+router.get("/my-students", authenticateToken, async (req, res) => {
   try {
-    const students = await getTeacherStudents(req.params.teacherId);
+    if (req.user.role !== 'teacher') {
+      return res.status(403).json({ error: "Only teachers can view their students" });
+    }
+
+    const students = await User.find({
+      role: "student",
+      teacher: req.user.id
+    }).select('id username email mathLevel');
+
     res.json(students);
   } catch (error) {
-    res.status(400).json({ error: error.message });
+    console.error('Failed to get students:', error);
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 
-router.get('/unassigned-students', authMiddleware, async (req, res) => {
-  try {
-    const userRepository = AppDataSource.getRepository(User);
-    
-    // Find students who don't have a teacher assigned
-    const unassignedStudents = await userRepository
-      .createQueryBuilder('user')
-      .where('user.role = :role', { role: 'student' })
-      .andWhere('user.teacherId IS NULL') // Only get students with no teacher
-      .getMany();
-
-    res.json(unassignedStudents);
-  } catch (error) {
-    console.error('Error fetching unassigned students:', error);
-    res.status(500).json({ error: 'Failed to fetch unassigned students' });
+// Get unassigned students
+router.get("/unassigned-students", authenticateToken, async (req, res) => {
+  if (req.user.role !== 'teacher') {
+    return res.status(403).json({ error: "Only teachers can view unassigned students" });
   }
+  await searchUnassignedStudents(req, res);
 });
 
-router.post('/assign-student/:studentId', authMiddleware, async (req, res) => {
+// Get student statistics
+router.get("/student-statistics", authenticateToken, async (req, res) => {
   try {
-    const teacherId = req.user.id;
-    const studentId = req.params.studentId;
-    
-    const userRepository = AppDataSource.getRepository(User);
-    
-    // Find the student and teacher
-    const [student, teacher] = await Promise.all([
-      userRepository.findOne({ 
-        where: { id: studentId, role: 'student' }
-      }),
-      userRepository.findOne({ 
-        where: { id: teacherId, role: 'teacher' }
-      })
-    ]);
-
-    if (!student || !teacher) {
-      return res.status(404).json({ error: 'Student or teacher not found' });
+    if (req.user.role !== 'teacher') {
+      return res.status(403).json({ error: "Only teachers can view student statistics" });
     }
 
-    // Check if student is already assigned
-    if (student.teacherId) {
-      return res.status(400).json({ error: 'Student is already assigned to a teacher' });
-    }
-
-    // Assign the student to the teacher
-    student.teacherId = teacherId;
-    await userRepository.save(student);
-
-    res.json({ message: 'Student assigned successfully' });
-  } catch (error) {
-    console.error('Error assigning student:', error);
-    res.status(500).json({ error: 'Failed to assign student' });
-  }
-});
-
-// Add this new endpoint to get student statistics
-router.get('/student-statistics', authMiddleware, async (req, res) => {
-  try {
-    const teacherId = req.user.id;
-    const userRepository = AppDataSource.getRepository(User);
-    const assignmentRepository = AppDataSource.getRepository(Assignment);
-
-    // Get all students for this teacher
-    const teacher = await userRepository.findOne({
-      where: { id: teacherId },
-      relations: ['students']
+    const students = await User.find({
+      role: "student",
+      teacher: req.user.id
     });
 
-    if (!teacher) {
-      return res.status(404).json({ error: 'Teacher not found' });
-    }
-
-    // Get statistics for each student
-    const statistics = await Promise.all(teacher.students.map(async (student) => {
-      const assignments = await assignmentRepository.find({
-        where: {
-          student: { id: student.id },
-          teacher: { id: teacherId }
-        }
+    const studentStats = await Promise.all(students.map(async (student) => {
+      const assignments = await Assignment.find({
+        student: student._id
       });
 
       const totalAssignments = assignments.length;
       const completedAssignments = assignments.filter(a => a.isCompleted).length;
+      const completionRate = totalAssignments > 0 
+        ? Math.round((completedAssignments / totalAssignments) * 100) 
+        : 0;
 
       return {
-        id: student.id,
-        username: student.username,
+        id: student._id,
+        name: student.username,
         email: student.email,
+        mathLevel: student.mathLevel || 1,
         totalAssignments,
         completedAssignments,
-        completionRate: totalAssignments > 0 ? (completedAssignments / totalAssignments * 100).toFixed(1) : 0
+        completionRate,
+        streak: student.streak || 0,
+        lastActive: student.updatedAt
       };
     }));
 
-    res.json(statistics);
+    res.json(studentStats);
   } catch (error) {
-    console.error('Error fetching student statistics:', error);
-    res.status(500).json({ error: 'Failed to fetch student statistics' });
+    console.error('Failed to get student statistics:', error);
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 

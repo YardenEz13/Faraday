@@ -1,83 +1,86 @@
 // server/src/controllers/assignmentController.js
-import { AppDataSource } from "../config/database.js";
+import { Assignment } from "../models/Assignment.js";
+import { User } from "../models/User.js";
 
 export const createAssignment = async (req, res) => {
   try {
-    const { title, description, dueDate, classId } = req.body;
-    const userId = req.user.userId;
-    const assignmentRepo = AppDataSource.getRepository("Assignment");
-    const classRepo = AppDataSource.getRepository("ClassEntity");
-    const userRepo = AppDataSource.getRepository("User");
+    const { title, description, equation, solution, hints, dueDate, studentId } = req.body;
+    const teacherId = req.user.id;
 
-    const classEntity = await classRepo.findOne({ where: { id: classId } });
-    if (!classEntity) {
-      return res.status(404).json({ message: "Class not found" });
+    // Validate student exists
+    const student = await User.findById(studentId);
+    if (!student || student.role !== 'student') {
+      return res.status(404).json({ error: 'Student not found' });
     }
 
-    const creator = await userRepo.findOne({ where: { id: userId } });
-    if (!creator) {
-      return res.status(404).json({ message: "Teacher not found" });
-    }
-
-    const assignment = assignmentRepo.create({
+    const assignment = new Assignment({
       title,
       description,
+      equation,
+      solution,
+      hints,
       dueDate,
-      class: classEntity,
-      creator
+      teacher: teacherId,
+      student: studentId
     });
-    await assignmentRepo.save(assignment);
 
-    return res.status(201).json(assignment);
-  } catch (err) {
-    console.error(err);
-    return res.status(500).json({ message: "Server error" });
+    await assignment.save();
+    res.status(201).json(assignment);
+  } catch (error) {
+    console.error('Error creating assignment:', error);
+    res.status(500).json({ error: 'Failed to create assignment' });
   }
 };
 
 export const getAssignments = async (req, res) => {
   try {
-    const assignmentRepo = AppDataSource.getRepository("Assignment");
-    const assignments = await assignmentRepo.find({
-      relations: ["class", "creator"]
-    });
-    return res.json(assignments);
-  } catch (err) {
-    console.error(err);
-    return res.status(500).json({ message: "Server error" });
+    const { role, id } = req.user;
+    let assignments;
+
+    if (role === 'teacher') {
+      assignments = await Assignment.find({ teacher: id })
+        .populate('student', 'username email')
+        .sort('-createdAt');
+    } else {
+      assignments = await Assignment.find({ student: id })
+        .populate('teacher', 'username email')
+        .sort('-createdAt');
+    }
+
+    res.json(assignments);
+  } catch (error) {
+    console.error('Error getting assignments:', error);
+    res.status(500).json({ error: 'Failed to get assignments' });
   }
 };
 
 export const submitAssignment = async (req, res) => {
   try {
-    const assignmentId = parseInt(req.params.assignmentId, 10);
     const { answer } = req.body;
-    const userId = req.user.userId;
+    const assignmentId = req.params.id;
+    const studentId = req.user.id;
 
-    const assignmentRepo = AppDataSource.getRepository("Assignment");
-    const answerRepo = AppDataSource.getRepository("StudentAnswer");
-    const userRepo = AppDataSource.getRepository("User");
-
-    const assignment = await assignmentRepo.findOne({ where: { id: assignmentId } });
-    if (!assignment) {
-      return res.status(404).json({ message: "Assignment not found" });
-    }
-
-    const student = await userRepo.findOne({ where: { id: userId } });
-    if (!student) {
-      return res.status(404).json({ message: "Student not found" });
-    }
-
-    const studentAnswer = answerRepo.create({
-      answer,
-      student,
-      assignment
+    const assignment = await Assignment.findOne({
+      _id: assignmentId,
+      student: studentId
     });
-    await answerRepo.save(studentAnswer);
 
-    return res.status(201).json({ message: "Assignment submitted successfully" });
-  } catch (err) {
-    console.error(err);
-    return res.status(500).json({ message: "Server error" });
+    if (!assignment) {
+      return res.status(404).json({ error: 'Assignment not found' });
+    }
+
+    if (assignment.isCompleted) {
+      return res.status(400).json({ error: 'Assignment already completed' });
+    }
+
+    // Update assignment
+    assignment.studentAnswer = answer;
+    assignment.isCompleted = true;
+    await assignment.save();
+
+    res.json({ message: 'Assignment submitted successfully' });
+  } catch (error) {
+    console.error('Error submitting assignment:', error);
+    res.status(500).json({ error: 'Failed to submit assignment' });
   }
 };

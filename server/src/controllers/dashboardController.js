@@ -1,38 +1,31 @@
 // server/src/controllers/dashboardController.js
-import { AppDataSource } from "../config/database.js";
 import { User } from "../models/User.js";
 import { Assignment } from "../models/Assignment.js";
 
 export const studentDashboard = async (req, res) => {
   try {
     const userId = req.user.id;
-    const userRepository = AppDataSource.getRepository(User);
-    const assignmentRepository = AppDataSource.getRepository(Assignment);
     
-    const student = await userRepository.findOne({
-      where: { id: userId },
-      relations: ["teacher"]
-    });
+    const student = await User.findById(userId)
+      .populate('teacher', 'username email');
 
     if (!student) {
       return res.status(404).json({ error: "Student not found" });
     }
 
     // Get student's assignments
-    const assignments = await assignmentRepository.find({
-      where: { student: { id: userId } },
-      relations: ["teacher"],
-      order: { createdAt: "DESC" }
-    });
+    const assignments = await Assignment.find({ student: userId })
+      .populate('teacher', 'username email')
+      .sort('-createdAt');
 
     return res.json({
       student: {
-        id: student.id,
+        id: student._id,
         username: student.username,
         email: student.email,
         mathLevel: student.mathLevel,
         teacher: student.teacher ? {
-          id: student.teacher.id,
+          id: student.teacher._id,
           username: student.teacher.username,
           email: student.teacher.email
         } : null
@@ -48,38 +41,58 @@ export const studentDashboard = async (req, res) => {
 export const teacherDashboard = async (req, res) => {
   try {
     const userId = req.user.id;
-    const userRepository = AppDataSource.getRepository(User);
-    const assignmentRepository = AppDataSource.getRepository(Assignment);
+    console.log('Teacher dashboard request for userId:', userId);
     
-    const teacher = await userRepository.findOne({
-      where: { id: userId },
-      relations: ["students"]
+    // First, let's check all students in the system
+    const allStudents = await User.find({ role: 'student' });
+    console.log('All students in system:', allStudents.map(s => ({
+      id: s._id,
+      username: s.username,
+      teacher: s.teacher
+    })));
+    
+    // Find all students assigned to this teacher
+    const students = await User.find({ 
+      role: 'student',
+      teacher: userId 
     });
+    
+    console.log('Found students for teacher:', students);
 
-    if (!teacher) {
-      return res.status(404).json({ error: "Teacher not found" });
-    }
+    // Get all assignments for each student
+    const studentsWithAssignments = await Promise.all(
+      students.map(async (student) => {
+        const studentAssignments = await Assignment.find({
+          student: student._id
+        }).sort('-createdAt');
 
-    // Get teacher's assignments
-    const assignments = await assignmentRepository.find({
-      where: { teacher: { id: userId } },
-      relations: ["student"],
-      order: { createdAt: "DESC" }
-    });
+        console.log(`Assignments for student ${student.username}:`, studentAssignments);
 
-    return res.json({
-      teacher: {
-        id: teacher.id,
-        username: teacher.username,
-        email: teacher.email,
-        students: teacher.students.map(student => ({
-          id: student.id,
+        // Calculate student's progress based on completed assignments
+        const completedAssignments = studentAssignments.filter(a => a.isCompleted).length;
+        const progress = studentAssignments.length > 0 
+          ? Math.round((completedAssignments / studentAssignments.length) * 100)
+          : 0;
+
+        return {
+          id: student._id,
+          email: student.email,
           username: student.username,
-          email: student.email
-        }))
-      },
-      assignments
-    });
+          level: student.mathLevel || 1,
+          progress: progress,
+          assignments: studentAssignments.map(assignment => ({
+            id: assignment._id,
+            title: assignment.title,
+            description: assignment.description,
+            dueDate: assignment.dueDate,
+            isCompleted: assignment.isCompleted
+          }))
+        };
+      })
+    );
+
+    console.log('Sending response:', studentsWithAssignments);
+    return res.json(studentsWithAssignments);
   } catch (error) {
     console.error("Teacher dashboard error:", error);
     return res.status(500).json({ error: "Failed to fetch teacher dashboard" });

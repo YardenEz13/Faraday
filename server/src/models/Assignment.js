@@ -1,62 +1,61 @@
 // server/src/models/Assignment.js
-import { EntitySchema } from "typeorm";
+import mongoose from 'mongoose';
 
-export const Assignment = new EntitySchema({
-  name: "Assignment",
-  columns: {
-    id: {
-      primary: true,
-      type: "int",
-      generated: true
-    },
-    title: {
-      type: "varchar",
-      length: 255
-    },
-    description: {
-      type: "text"
-    },
-    solution: {
-      type: "varchar",
-      length: 255
-    },
-    studentAnswer: {
-      type: "varchar",
-      length: 255,
-      nullable: true
-    },
-    isCompleted: {
-      type: "boolean",
-      default: false
-    },
-    isSurrendered: {
-      type: "boolean",
-      default: false
-    },
-    dueDate: {
-      type: "datetime",
-      nullable: true
-    },
-    createdAt: {
-      type: "datetime",
-      default: () => "CURRENT_TIMESTAMP"
-    },
-    updatedAt: {
-      type: "datetime",
-      default: () => "CURRENT_TIMESTAMP",
-      onUpdate: "CURRENT_TIMESTAMP"
+const AssignmentSchema = new mongoose.Schema({
+  title: {
+    type: String,
+    required: true
+  },
+  description: {
+    type: String,
+    required: true
+  },
+  equation: {
+    type: String,
+    required: true
+  },
+  solution: {
+    steps: [String],
+    answer: String,
+    final_answers: {
+      x: String,
+      y: String
     }
   },
-  relations: {
-    student: {
-      type: "many-to-one",
-      target: "User",
-      inverseSide: "assignments"
-    },
-    teacher: {
-      type: "many-to-one",
-      target: "User",
-      inverseSide: "createdAssignments"
-    }
+  hints: [String],
+  dueDate: {
+    type: Date,
+    required: true
+  },
+  isCompleted: {
+    type: Boolean,
+    default: false
+  },
+  studentAnswer: {
+    type: String,
+    default: null
+  },
+  isSurrendered: {
+    type: Boolean,
+    default: false
+  },
+  teacher: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: true
+  },
+  student: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: true
   }
+}, {
+  timestamps: true
 });
+
+// Add indexes
+AssignmentSchema.index({ teacher: 1, student: 1 }); // For querying assignments by teacher/student
+AssignmentSchema.index({ dueDate: 1 }); // For querying upcoming assignments
+AssignmentSchema.index({ isCompleted: 1 }); // For querying completed/incomplete assignments
+
+export const Assignment = mongoose.model('Assignment', AssignmentSchema);

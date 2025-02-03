@@ -1,309 +1,224 @@
 import React, { useEffect, useState } from "react";
-import { getTeacherDashboard, getUnassignedStudents, assignStudent, sendAssignmentToStudent, generateAssignmentWithAI, getTeacherAssignments, deleteAssignment } from "../services/api";
-import { Card, CardHeader, CardTitle, CardContent } from "../components/ui/card";
+import { Link } from "react-router-dom";
+import { getTeacherDashboard, deleteAssignment } from "../services/api";
 import { Button } from "../components/ui/button";
-import { Input } from "../components/ui/input";
-import { Textarea } from "../components/ui/textarea";
-import { format } from "date-fns";
-import StudentStatisticsTable from "../components/StudentStatisticsTable";
+import { Card } from "../components/ui/card";
+import { toast } from "react-hot-toast";
+import { Users, Trash2, GraduationCap, BookOpen } from "lucide-react";
+import StudentSearch from '../components/StudentSearch';
 
-function TeacherDashboard() {
-  const [dashboardData, setDashboardData] = useState(null);
-  const [unassignedStudents, setUnassignedStudents] = useState([]);
+export default function TeacherDashboard() {
+  const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [selectedStudent, setSelectedStudent] = useState(null);
-  const [assignment, setAssignment] = useState({
-    title: '',
-    description: '',
-    solution: '',
-    dueDate: ''
-  });
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [prompt, setPrompt] = useState('');
-  const [teacherAssignments, setTeacherAssignments] = useState([]);
-
-  const fetchDashboardData = async () => {
-    try {
-      const [dashboardResponse, unassignedResponse, assignmentsResponse] = await Promise.all([
-        getTeacherDashboard(),
-        getUnassignedStudents(),
-        getTeacherAssignments()
-      ]);
-      setDashboardData(dashboardResponse.data);
-      setUnassignedStudents(unassignedResponse.data);
-      setTeacherAssignments(assignmentsResponse.data);
-      setLoading(false);
-    } catch (error) {
-      console.error('Dashboard error:', error);
-      setError(error.message);
-      setLoading(false);
-    }
-  };
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   useEffect(() => {
-    fetchDashboardData();
+    fetchDashboard();
   }, []);
 
-  const handleAssignStudent = async (studentId) => {
+  const fetchDashboard = async () => {
     try {
-      await assignStudent(studentId);
-      // Refresh dashboard data after assigning student
-      fetchDashboardData();
-    } catch (error) {
-      console.error('Error assigning student:', error);
-      alert(error.response?.data?.error || 'Failed to assign student');
-    }
-  };
-
-  const handleSendAssignment = async (studentId) => {
-    try {
-      await sendAssignmentToStudent(studentId, assignment);
-      alert('Assignment sent successfully!');
-      setAssignment({ title: '', description: '', solution: '', dueDate: '' }); // Reset form
-      setSelectedStudent(null);
-    } catch (error) {
-      console.error('Error sending assignment:', error);
-      alert(error.response?.data?.error || 'Failed to send assignment');
-    }
-  };
-
-  const handleGenerateAssignment = async () => {
-    if (!prompt.trim()) {
-      alert('Please enter a description for the assignment');
-      return;
-    }
-
-    setIsGenerating(true);
-    try {
-      const response = await generateAssignmentWithAI(prompt);
-      console.log("AI Response:", response.data); // For debugging
-
-      if (response.data.title && response.data.description && response.data.solution) {
-        setAssignment({
-          ...assignment,
-          title: response.data.title,
-          description: response.data.description,
-          solution: response.data.solution,
-        });
+      const response = await getTeacherDashboard();
+      console.log('Teacher dashboard response:', response.data);
+      
+      if (Array.isArray(response.data)) {
+        setStudents(response.data);
       } else {
-        throw new Error('Incomplete assignment generation');
+        console.error('Unexpected data format:', response.data);
+        setStudents([]);
       }
+      
+      setLoading(false);
     } catch (error) {
-      console.error('Error generating assignment:', error);
-      alert('Failed to generate assignment. Please try again or create the assignment manually.');
-    } finally {
-      setIsGenerating(false);
+      console.error('Error fetching dashboard:', error);
+      toast.error('Error loading dashboard');
+      setStudents([]);
+      setLoading(false);
     }
   };
 
   const handleDeleteAssignment = async (assignmentId) => {
-    if (window.confirm('Are you sure you want to delete this assignment?')) {
-      try {
-        await deleteAssignment(assignmentId);
-        // Refresh the assignments list
-        fetchDashboardData();
-        alert('Assignment deleted successfully');
-      } catch (error) {
-        console.error('Error deleting assignment:', error);
-        alert('Failed to delete assignment');
-      }
+    try {
+      await deleteAssignment(assignmentId);
+      toast.success('Assignment deleted successfully');
+      fetchDashboard();
+    } catch (error) {
+      console.error('Error deleting assignment:', error);
+      toast.error('Failed to delete assignment');
     }
   };
 
-  if (loading) return <div className="flex items-center justify-center min-h-screen">Loading...</div>;
-  if (error) return <div className="flex items-center justify-center min-h-screen text-red-500">Error: {error}</div>;
-  if (!dashboardData?.teacher) return <div className="flex items-center justify-center min-h-screen">No teacher data available</div>;
+  const handleStudentAdded = () => {
+    // Trigger a refresh of the dashboard data
+    setRefreshTrigger(prev => prev + 1);
+  };
+
+  if (loading) {
+    return <div className="flex items-center justify-center min-h-screen">Loading...</div>;
+  }
+
+  if (!Array.isArray(students) || students.length === 0) {
+    return (
+      <div className="container mx-auto p-6">
+        <div className="flex justify-between items-center mb-6">
+          <div className="flex items-center gap-2">
+            <Users className="w-8 h-8 text-primary" />
+            <h1 className="text-2xl font-bold">My Students</h1>
+          </div>
+        </div>
+        
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2">
+            <Card className="p-6 text-center border-primary/20 dark:border-primary/20">
+              <p className="text-muted-foreground mb-4">No students found. Add new students to get started.</p>
+            </Card>
+          </div>
+          
+          {/* Student search sidebar */}
+          <div className="lg:col-span-1">
+            <StudentSearch onStudentAdded={handleStudentAdded} />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Calculate overall statistics
+  const totalAssignments = students.reduce((sum, student) => sum + (student.assignments?.length || 0), 0);
+  const completedAssignments = students.reduce((sum, student) => 
+    sum + (student.assignments?.filter(a => a.isCompleted)?.length || 0), 0);
+  const averageLevel = students.reduce((sum, student) => sum + (student.level || 1), 0) / students.length;
 
   return (
     <div className="container mx-auto p-6">
-      <h1 className="text-3xl font-bold mb-6">Teacher Dashboard</h1>
-      <div className="grid gap-6 md:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>Profile Information</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              <p><strong>Name:</strong> {dashboardData.teacher.username}</p>
-              <p><strong>Email:</strong> {dashboardData.teacher.email}</p>
-            </div>
-          </CardContent>
-        </Card>
+      <div className="flex justify-between items-center mb-6">
+        <div className="flex items-center gap-2">
+          <Users className="w-8 h-8 text-primary" />
+          <h1 className="text-2xl font-bold">My Students</h1>
+        </div>
+        <Button asChild>
+          <Link to="/students/add">Add New Students</Link>
+        </Button>
+      </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>My Students</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {dashboardData.teacher.students?.length > 0 ? (
-              <ul className="space-y-4">
-                {dashboardData.teacher.students.map((student) => (
-                  <li key={student.id} className="p-4 border rounded">
-                    <div className="flex justify-between items-start mb-4">
-                      <div>
-                        <p><strong>Name:</strong> {student.username}</p>
-                        <p><strong>Email:</strong> {student.email}</p>
-                      </div>
-                      <Button
-                        onClick={() => setSelectedStudent(student.id === selectedStudent ? null : student.id)}
-                        variant="outline"
-                        size="sm"
-                      >
-                        {student.id === selectedStudent ? 'Cancel' : 'Assign Homework'}
-                      </Button>
-                    </div>
-                    
-                    {selectedStudent === student.id && (
-                      <div className="space-y-4 mt-4 p-4 bg-muted rounded">
-                        <div className="space-y-2">
-                          <label className="text-sm font-medium">Generate Assignment with AI</label>
-                          <div className="flex gap-2">
-                            <Textarea
-                              placeholder="Enter the topic or type of question (e.g., 'Pythagorean theorem', 'Addition of fractions', 'Linear equations')"
-                              value={prompt}
-                              onChange={(e) => setPrompt(e.target.value)}
-                              className="flex-1"
-                            />
-                            <Button
-                              onClick={handleGenerateAssignment}
-                              disabled={isGenerating}
-                              variant="secondary"
-                            >
-                              {isGenerating ? 'Generating...' : 'Generate'}
-                            </Button>
+      {/* Statistics Cards */}
+      <div className="grid gap-4 md:grid-cols-3 mb-6">
+        <Card className="p-4 border-primary/20 dark:border-primary/20">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-primary/10 dark:bg-primary/20 rounded-lg">
+              <Users className="w-5 h-5 text-primary" />
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Total Students</p>
+              <p className="text-2xl font-semibold">{students.length}</p>
+            </div>
+          </div>
+        </Card>
+        
+        <Card className="p-4 border-primary/20 dark:border-primary/20">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-primary/10 dark:bg-primary/20 rounded-lg">
+              <GraduationCap className="w-5 h-5 text-primary" />
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Average Level</p>
+              <p className="text-2xl font-semibold">{averageLevel.toFixed(1)}</p>
+            </div>
+          </div>
+        </Card>
+        
+        <Card className="p-4 border-primary/20 dark:border-primary/20">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-primary/10 dark:bg-primary/20 rounded-lg">
+              <BookOpen className="w-5 h-5 text-primary" />
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Assignments Completed</p>
+              <p className="text-2xl font-semibold">
+                <span className="text-green-600 dark:text-green-400">{completedAssignments}</span>
+                {' / '}
+                {totalAssignments}
+              </p>
+            </div>
+          </div>
+        </Card>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Main content - student cards */}
+        <div className="lg:col-span-2 space-y-6">
+          {students.map((student) => (
+            <Card key={student.id || Math.random()} className="p-6 border-primary/20 dark:border-primary/20">
+              <div className="flex justify-between items-start mb-4">
+                <div>
+                  <h2 className="text-xl font-semibold">{student.username || 'Student'}</h2>
+                  <p className="text-muted-foreground">{student.email}</p>
+                </div>
+                <Button 
+                  variant="outline" 
+                  asChild
+                  className="hover:bg-primary/10 hover:text-primary transition-colors border-primary/20"
+                >
+                  <Link to={`/assignment/create/${student.id}`}>
+                    Assign Homework
+                  </Link>
+                </Button>
+              </div>
+
+              <div className="flex items-center gap-4 mb-4">
+                <div className="bg-primary/10 dark:bg-primary/20 px-3 py-1 rounded-full">
+                  <span className="text-primary">Level {student.level || 1}</span>
+                </div>
+                <div className="bg-primary/10 dark:bg-primary/20 px-3 py-1 rounded-full">
+                  <span className="text-primary">Progress: {student.progress || 0}%</span>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <h3 className="font-medium">Recent Assignments</h3>
+                {Array.isArray(student.assignments) && student.assignments.length > 0 ? (
+                  <div className="space-y-2">
+                    {student.assignments.map((assignment) => (
+                      <div key={assignment.id || Math.random()} className="flex justify-between items-center p-3 bg-muted/50 hover:bg-muted/70 rounded-lg transition-colors">
+                        <div>
+                          <div className="font-medium">{assignment.title}</div>
+                          <div className="text-sm text-muted-foreground">
+                            Due: {assignment.dueDate ? new Date(assignment.dueDate).toLocaleDateString() : 'Invalid Date'}
                           </div>
                         </div>
-
-                        <Input
-                          placeholder="Assignment Title"
-                          value={assignment.title}
-                          onChange={(e) => setAssignment({ ...assignment, title: e.target.value })}
-                          className="w-full"
-                        />
-                        <Textarea
-                          placeholder="Assignment Description"
-                          value={assignment.description}
-                          onChange={(e) => setAssignment({ ...assignment, description: e.target.value })}
-                          className="w-full min-h-[150px]"
-                        />
-                        <Textarea
-                          placeholder="Correct Answer/Solution"
-                          value={assignment.solution}
-                          onChange={(e) => setAssignment({ ...assignment, solution: e.target.value })}
-                          className="w-full"
-                        />
-                        <Input
-                          type="date"
-                          value={assignment.dueDate}
-                          onChange={(e) => setAssignment({ ...assignment, dueDate: e.target.value })}
-                          className="w-full"
-                        />
-                        <Button
-                          onClick={() => handleSendAssignment(student.id)}
-                          className="w-full"
-                        >
-                          Send Assignment
-                        </Button>
+                        <div className="flex items-center gap-2">
+                          <div className="text-sm">
+                            {assignment.isCompleted ? (
+                              <span className="text-green-600 dark:text-green-400">Completed</span>
+                            ) : (
+                              <span className="text-yellow-600 dark:text-yellow-400">Pending</span>
+                            )}
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="hover:bg-destructive/10 hover:text-destructive"
+                            onClick={() => handleDeleteAssignment(assignment.id)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </div>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p>No students assigned yet</p>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Available Students</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {unassignedStudents.length > 0 ? (
-              <ul className="space-y-2">
-                {unassignedStudents.map((student) => (
-                  <li key={student.id} className="p-2 border rounded flex justify-between items-center">
-                    <div>
-                      <p><strong>Name:</strong> {student.username}</p>
-                      <p><strong>Email:</strong> {student.email}</p>
-                    </div>
-                    <Button 
-                      onClick={() => handleAssignStudent(student.id)}
-                      size="sm"
-                    >
-                      Assign
-                    </Button>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p>No unassigned students available</p>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Assignments Status</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {teacherAssignments.length > 0 ? (
-              <div className="space-y-4">
-                {teacherAssignments.map((assignment) => (
-                  <div
-                    key={assignment.id}
-                    className={`p-4 border rounded-lg ${
-                      assignment.isCompleted 
-                        ? 'border-green-500 dark:border-green-700' 
-                        : 'border-yellow-500 dark:border-yellow-700'
-                    }`}
-                  >
-                    <div className="flex justify-between items-start mb-2">
-                      <h3 className="font-semibold text-lg">{assignment.title}</h3>
-                      <div className="flex items-center gap-2">
-                        <span className={`text-sm px-2 py-1 rounded ${
-                          assignment.isCompleted
-                            ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100'
-                            : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-100'
-                        }`}>
-                          {assignment.isCompleted ? 'Completed' : 'Pending'}
-                        </span>
-                        <Button
-                          variant="destructive"
-                          size="sm"
-                          onClick={() => handleDeleteAssignment(assignment.id)}
-                        >
-                          Delete
-                        </Button>
-                      </div>
-                    </div>
-                    <div className="space-y-1">
-                      <p><strong>Student:</strong> {assignment.student.username}</p>
-                      <p><strong>Due Date:</strong> {format(new Date(assignment.dueDate), 'MMM dd, yyyy')}</p>
-                      {assignment.isCompleted && (
-                        <>
-                          <p><strong>Student's Answer:</strong> {assignment.studentAnswer}</p>
-                          <p><strong>Correct Solution:</strong> {assignment.solution}</p>
-                        </>
-                      )}
-                    </div>
+                    ))}
                   </div>
-                ))}
+                ) : (
+                  <p className="text-muted-foreground text-sm">No recent assignments</p>
+                )}
               </div>
-            ) : (
-              <p>No assignments yet</p>
-            )}
-          </CardContent>
-        </Card>
+            </Card>
+          ))}
+        </div>
 
-        <div className="col-span-2">
-          <StudentStatisticsTable />
+        {/* Student search sidebar */}
+        <div className="lg:col-span-1">
+          <StudentSearch onStudentAdded={handleStudentAdded} />
         </div>
       </div>
     </div>
   );
 }
-
-export default TeacherDashboard;
