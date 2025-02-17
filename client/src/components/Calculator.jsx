@@ -215,8 +215,8 @@ export function Calculator({ isOpen, onClose }) {
         {/* Calculator Header */}
         <div className="flex justify-between items-center mb-2">
           <div className="text-sm font-bold bg-gradient-to-r from-blue-600 to-purple-600 dark:from-blue-400 dark:to-purple-400 
-            text-transparent bg-clip-text">CASIO fx-991ES PLUS</div>
-          <div className="text-xs text-gray-600 dark:text-gray-400">NATURAL-V.P.A.M.</div>
+            text-transparent bg-clip-text"></div>
+          <div className="text-xs text-gray-600 dark:text-gray-400"></div>
         </div>
 
         {/* Solar Panel */}

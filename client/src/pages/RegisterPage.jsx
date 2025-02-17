@@ -53,12 +53,12 @@ export default function RegisterPage() {
   const isRTL = i18n.language === 'he';
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-indigo-500/80 dark:from-indigo-500/20 via-purple-500/80 dark:via-purple-500/20 to-pink-500/80 dark:to-pink-500/20 relative overflow-hidden">
+    <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-emerald-500/80 dark:from-emerald-500/20 via-emerald-500/80 dark:via-emerald-500/20 to-emerald-500/80 dark:to-emerald-500/20 relative overflow-hidden">
       {/* Animated background elements */}
       <div className="absolute inset-0 w-full h-full">
-        <div className="absolute w-96 h-96 -top-48 -left-48 bg-purple-500/50 dark:bg-purple-400/30 rounded-full mix-blend-multiply filter blur-xl opacity-70 animate-blob"></div>
-        <div className="absolute w-96 h-96 -bottom-48 -right-48 bg-yellow-500/50 dark:bg-yellow-400/30 rounded-full mix-blend-multiply filter blur-xl opacity-70 animate-blob animation-delay-2000"></div>
-        <div className="absolute w-96 h-96 top-48 left-48 bg-pink-500/50 dark:bg-pink-400/30 rounded-full mix-blend-multiply filter blur-xl opacity-70 animate-blob animation-delay-4000"></div>
+        <div className="absolute w-96 h-96 -top-48 -left-48 bg-emerald-500/50 dark:bg-emerald-400/30 rounded-full mix-blend-multiply filter blur-xl opacity-70 animate-blob"></div>
+        <div className="absolute w-96 h-96 -bottom-48 -right-48 bg-emerald-500/50 dark:bg-emerald-400/30 rounded-full mix-blend-multiply filter blur-xl opacity-70 animate-blob animation-delay-2000"></div>
+            <div className="absolute w-96 h-96 top-48 left-48 bg-emerald-500/50 dark:bg-emerald-400/30 rounded-full mix-blend-multiply filter blur-xl opacity-70 animate-blob animation-delay-4000"></div>
       </div>
 
       <div className="absolute top-4 right-4 z-10 flex items-center gap-2">
@@ -201,7 +201,7 @@ export default function RegisterPage() {
               >
                 <Button 
                   type="submit" 
-                  className={`w-full ${isRTL ? 'font-yarden' : 'font-inter'} transition-all duration-300 bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 text-white dark:from-indigo-600 dark:to-purple-600 dark:hover:from-indigo-500 dark:hover:to-purple-500`}
+                  className={`w-full ${isRTL ? 'font-yarden' : 'font-inter'} transition-all duration-300 bg-gradient-to-r from-emerald-500 to-emerald-500 hover:from-emerald-600 hover:to-emerald-600 text-white dark:from-emerald-600 dark:to-emerald-600 dark:hover:from-emerald-500 dark:hover:to-emerald-500`}
                   disabled={isLoading}
                 >
                   {isLoading ? (

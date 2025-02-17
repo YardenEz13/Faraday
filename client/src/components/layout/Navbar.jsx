@@ -18,14 +18,14 @@ export default function Navbar() {
   const toggleMenu = () => setIsMenuOpen(!isMenuOpen);
 
   return (
-    <nav className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+    <nav className="border-b bg-gradient-to-r from-primary to-emerald-200 backdrop-blur supports-[backdrop-filter]:bg-background/60 dark:bg-gradient-to-r dark:from-primary dark:to-emerald-900">
       <div className={`container mx-auto px-4 sm:px-6 py-3 sm:py-4 ${isRTL ? 'rtl rtl-font' : 'ltr ltr-font'}`}>
         <div className="flex items-center justify-between">
           {/* Logo */}
           <div className={`flex-1 ${isRTL ? 'text-right' : 'text-left'}`}>
             <Link to="/" className="inline-flex items-center gap-2 text-lg sm:text-xl font-bold hover:text-primary transition-colors group">
-              <HandMetal className="w-5 h-5 sm:w-6 sm:h-6 text-primary animate-float group-hover:scale-110 transition-transform dark:text-green-900 text-green-900" />
-              <span className="bg-gradient-to-r from-primary to-green-900 bg-clip-text text-transparent">
+              <HandMetal className="w-5 h-5 sm:w-6 sm:h-6 text-primary animate-float group-hover:scale-110 transition-transform dark:text-emerald-200 text-emerald-500" />
+              <span className="bg-gradient-to-r from-emerald-500 to-emerald-900 bg-clip-text text-transparent dark:text-emerald-200 text-emerald-500">
                 Faraday
               </span>
             </Link>
@@ -70,7 +70,7 @@ export default function Navbar() {
                 </Button>
                 <Button asChild variant="ghost" className={`text-sm ${isRTL ? 'flex-row-reverse' : ''}`}>
                   <Link to="/practice">
-                    <Brain className={`w-4 h-4 ${isRTL ? 'ml-2' : 'mr-2'} dark:text-green-900 text-green-900 `} />
+                    <Brain className={`w-4 h-4 ${isRTL ? 'ml-2' : 'mr-2'}  text-white-900 `} />
                     {t('nav.practice')}
                   </Link>
                 </Button>

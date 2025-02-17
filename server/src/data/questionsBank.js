@@ -328,44 +328,87 @@ export const QUESTIONS_BANK = {
     {
       difficulty: 1,
       generator: () => {
-        const a1 = getRandomInt(1, 5);
-        const d = getRandomInt(1, 3);
+        const a1 = getRandomInt(2, 3); 
+        const d = getRandomInt(2, 3); 
+        const n = getRandomInt(5, 10);  
         return {
-          title: "סדרה חשבונית",
-          description: `בסדרה חשבונית האיבר הראשון הוא ${a1} וההפרש הוא ${d}. מצא את האיבר החמישי.`,
-          equation: `a₁=${a1}, d=${d}`,
+          title: "סדרה חשבונית פשוטה",
+          description: `בסדרה החשבונית הבאה: ${a1}, ${a1+d}, ${a1+2*d}, ${a1+3*d}...
+                       מצא את האיבר במקום ה-${n}.`,
+          equation: `a₍${n}₎ = ?`,
           solution: {
             steps: [
-              "בסדרה חשבונית כל איבר שווה לקודמו ועוד ההפרש",
-              `a₂ = ${a1} + ${d} = ${a1+d}`,
-              `a₃ = ${a1+d} + ${d} = ${a1+2*d}`,
-              `a₄ = ${a1+2*d} + ${d} = ${a1+3*d}`,
-              `a₅ = ${a1+3*d} + ${d} = ${a1+4*d}`
+              "זוהי סדרה חשבונית פשוטה עם איבר ראשון a₁ = ${a1}",
+              "ההפרש בין כל שני איברים עוקבים הוא d = ${d}",
+              "נשתמש בנוסחה: aₙ = a₁ + (n-1)d",
+              `נציב: a₍${n}₎ = ${a1} + (${n}-1) × ${d} = ${a1} + ${n-1} × ${d} = ${a1 + (n-1)*d}`
             ],
-            final_answers: { x: (a1+4*d).toString() }
+            final_answers: { x: (a1 + (n-1)*d).toString() }
           },
-          hints: ["השתמש בנוסחה: aₙ = a₁ + (n-1)d", "חשב איבר אחר איבר"]
+          hints: [
+            `הסדרה היא: ${a1}, ${a1+d}, ${a1+2*d}, ${a1+3*d}, ..., ${a1 + (n-1)*d}`,
+            "כל איבר גדול ב-${d} מקודמו",
+            `האיבר ה-${n} הוא ${a1 + (n-1)*d}`
+          ]
         };
       }
     },
     {
       difficulty: 2,
       generator: () => {
-        const a1 = getRandomInt(2, 5);
-        const r = getRandomInt(2, 3);
+        const a1 = getRandomInt(2, 7);
+        const r = getRandomInt(2, 4);
+        const n = getRandomInt(4, 6); // Random position between 4-6
         return {
           title: "סדרה הנדסית",
-          description: `בסדרה הנדסית האיבר הראשון הוא ${a1} והיחס הוא ${r}. מצא את האיבר הרביעי.`,
-          equation: `a₁=${a1}, r=${r}`,
+          description: `בסדרה הנדסית האיבר הראשון הוא ${a1} והמנה היא ${r}.
+                       הסדרה מתחילה כך: ${a1}, ${a1*r}, ${a1*r*r}...
+                       מצא את האיבר במקום ה-${n}.`,
+          equation: `a₁=${a1}, r=${r}, n=${n}`,
           solution: {
             steps: [
-              "נוסחת איבר כללי: aₙ = a₁·r^(n-1)",
-              `a₄ = ${a1}·${r}^(4-1)`,
-              `= ${a1}·${r}^3 = ${a1*r**3}`
+              "בסדרה הנדסית נשתמש בנוסחה: aₙ = a₁·r^(n-1)",
+              `נציב את הנתונים: a₁=${a1}, r=${r}, n=${n}`,
+              `a${n} = ${a1}·${r}^(${n}-1)`,
+              `a${n} = ${a1}·${r}^${n-1} = ${a1*Math.pow(r,n-1)}`
             ],
-            final_answers: { x: (a1*r**3).toString() }
+            final_answers: { x: (a1*Math.pow(r,n-1)).toString() }
           },
-          hints: ["השתמש בנוסחה aₙ = a₁·r^(n-1)", "חשב חזקה שלישית"]
+          hints: [
+            "זהה את סוג הסדרה (הנדסית)",
+            "השתמש בנוסחת האיבר הכללי: aₙ = a₁·r^(n-1)",
+            `חשב: ${a1} × ${r}^${n-1}`
+          ]
+        };
+      }
+    },
+    {
+      difficulty: 3,
+      generator: () => {
+        const a1 = getRandomInt(1, 5);
+        const d = getRandomInt(2, 4);
+        const n = getRandomInt(4, 7); // Random position between 4-7
+        const sn = (n/2)*(2*a1 + (n-1)*d); // Sum formula for arithmetic sequence
+        return {
+          title: "סכום סדרה חשבונית",
+          description: `בסדרה חשבונית האיבר הראשון הוא ${a1} וההפרש הוא ${d}.
+                       הסדרה מתחילה כך: ${a1}, ${a1+d}, ${a1+2*d}...
+                       מצא את סכום ${n} האיברים הראשונים בסדרה.`,
+          equation: `S${n} = ?`,
+          solution: {
+            steps: [
+              "בסדרה חשבונית נשתמש בנוסחת הסכום: Sₙ = (n/2)(2a₁ + (n-1)d)",
+              `נציב את הנתונים: n=${n}, a₁=${a1}, d=${d}`,
+              `S${n} = (${n}/2)(2×${a1} + (${n}-1)×${d})`,
+              `S${n} = ${n/2}(${2*a1} + ${(n-1)*d}) = ${sn}`
+            ],
+            final_answers: { x: sn.toString() }
+          },
+          hints: [
+            "השתמש בנוסחת סכום סדרה חשבונית",
+            "הנוסחה היא: Sₙ = (n/2)(2a₁ + (n-1)d)",
+            `חשב: (${n}/2)(${2*a1} + ${(n-1)*d})`
+          ]
         };
       }
     }
@@ -437,7 +480,7 @@ export const QUESTIONS_BANK = {
               "מספר המקרים הרצויים חלקי מספר המקרים האפשריים",
               `P(אדום) = ${success}/${total} = ${probability.toFixed(2)}`
             ],
-            final_answers: { x: probability.toFixed(2) }
+            final_answers: { probability: probability.toFixed(3) }
           },
           hints: ["חשוב על היחס בין הכדורים האדומים לסך כל הכדורים", "השתמש בנוסחה: מספר רצוי חלקי מספר אפשרי"]
         };
@@ -458,7 +501,7 @@ export const QUESTIONS_BANK = {
               `הסתברות שנייה: ${blue}/${red+blue-1}`,
               `סה"כ: (${red}/${red+blue}) * (${blue}/${red+blue-1}) = ${(red*blue/((red+blue)*(red+blue-1))).toFixed(2)}`
             ],
-            final_answers: { probability: (red*blue/((red+blue)*(red+blue-1))).toFixed(2) }
+            final_answers: { probability: (red*blue/((red+blue)*(red+blue-1))).toFixed(3) }
           },
           hints: ["הסתברות מותנית", "המכנה קטן ב-1 במשיכה השנייה"]
         };

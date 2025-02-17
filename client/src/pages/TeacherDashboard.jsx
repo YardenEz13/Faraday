@@ -34,32 +34,6 @@ const statCard = {
   }
 };
 
-const cardHoverAnimation = {
-  rest: { scale: 1, y: 0 },
-  hover: { 
-    scale: 1.02,
-    y: -5,
-    transition: {
-      type: "spring",
-      stiffness: 400,
-      damping: 10
-    }
-  }
-};
-
-const shimmerAnimation = {
-  initial: {
-    backgroundPosition: "-200% 0",
-  },
-  animate: {
-    backgroundPosition: "200% 0",
-    transition: {
-      repeat: Infinity,
-      duration: 2,
-    },
-  },
-};
-
 export default function TeacherDashboard() {
   const [dashboardData, setDashboardData] = useState({
     students: [],
@@ -216,25 +190,23 @@ export default function TeacherDashboard() {
       <motion.div 
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="flex items-center justify-between mb-8"
+        className={`flex items-center justify-between mb-6 ${isRTL ? 'flex-row-reverse' : ''}`}
       >
-        <div className="flex items-center gap-4">
-          <motion.div
-            whileHover={{ scale: 1.1, rotate: 360 }}
-            transition={{ type: "spring", stiffness: 200, damping: 10 }}
-            className="p-3 rounded-2xl bg-primary/10"
-          >
-            <Users className="w-8 h-8 text-primary" />
-          </motion.div>
-          <div>
-            <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-emerald-500 bg-clip-text text-transparent">
-              {t('dashboard.title')}
-            </h1>
-            <p className="text-muted-foreground">
-              {t('dashboard.description')}
-            </p>
-          </div>
+        <div className={`flex items-center gap-2 ${isRTL ? 'flex-row-reverse' : ''}`}>
+          <Users className="w-6 h-6 sm:w-8 sm:h-8 text-primary" />
+          <h1 className={`text-lg sm:text-2xl font-bold ${isRTL ? 'text-right' : 'text-left'}`}>
+            {t('dashboard.title')}
+          </h1>
         </div>
+
+        <Button 
+          variant="outline" 
+          className={`gap-2 group hover:bg-primary hover:text-primary-foreground transition-all duration-200 ${isRTL ? 'flex-row-reverse' : ''}`}
+          onClick={() => setIsAddingStudents(true)}
+        >
+          <Plus className="w-4 h-4 group-hover:rotate-90 transition-transform duration-200" />
+          {t('students.assignToTeacher')}
+        </Button>
       </motion.div>
 
       {/* Statistics Cards */}
@@ -242,13 +214,9 @@ export default function TeacherDashboard() {
         variants={container}
         initial="hidden"
         animate="show"
-        className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-8"
+        className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6"
       >
-        <motion.div
-          variants={item}
-          whileHover={{ scale: 1.02 }}
-          className="group"
-        >
+        <motion.div variants={statCard}>
           <Card className="p-4 border-primary/20 bg-gradient-to-br from-background to-muted/50 hover:shadow-lg transition-shadow duration-200">
             <div className={`flex items-center gap-3 ${isRTL ? 'flex-row-reverse' : ''}`}>
               <div className="p-2 bg-primary/10 rounded-lg shrink-0">
@@ -262,11 +230,7 @@ export default function TeacherDashboard() {
           </Card>
         </motion.div>
 
-        <motion.div
-          variants={item}
-          whileHover={{ scale: 1.02 }}
-          className="group"
-        >
+        <motion.div variants={statCard}>
           <Card className="p-4 border-primary/20 bg-gradient-to-br from-background to-muted/50 hover:shadow-lg transition-shadow duration-200">
             <div className={`flex items-center gap-3 ${isRTL ? 'flex-row-reverse' : ''}`}>
               <div className="p-2 bg-primary/10 rounded-lg shrink-0">
@@ -280,11 +244,7 @@ export default function TeacherDashboard() {
           </Card>
         </motion.div>
 
-        <motion.div
-          variants={item}
-          whileHover={{ scale: 1.02 }}
-          className="group"
-        >
+        <motion.div variants={statCard}>
           <Card className="p-4 border-primary/20 bg-gradient-to-br from-background to-muted/50 hover:shadow-lg transition-shadow duration-200">
             <div className={`flex items-center gap-3 ${isRTL ? 'flex-row-reverse' : ''}`}>
               <div className="p-2 bg-primary/10 rounded-lg shrink-0">

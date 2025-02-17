@@ -1,15 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "../components/ui/card";
+import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
-import { ArrowLeft, HelpCircle, BookOpen, Brain, Sparkles, Target, Award } from "lucide-react";
+import { ArrowLeft, HelpCircle, BookOpen, Brain, Sparkles, Target, Award, CheckCircle, Calculator, X } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { getAssignment, submitAssignmentAnswer, getAssignmentHint, submitAssignment } from '../services/api';
 import { useTranslation } from 'react-i18next';
 import { Label } from "../components/ui/label";
 import { motion, AnimatePresence } from 'framer-motion';
 import confetti from 'canvas-confetti';
+import { Calculator as CalculatorComponent } from "../components/Calculator";
 
 const container = {
   hidden: { opacity: 0 },
@@ -29,11 +30,11 @@ const item = {
 const floatingAnimation = {
   initial: { y: 0 },
   animate: {
-    y: [-5, 5, -5],
+    y: [-10, 0, -10],
     transition: {
       duration: 4,
+      ease: "easeInOut",
       repeat: Infinity,
-      ease: "easeInOut"
     }
   }
 };
@@ -41,11 +42,11 @@ const floatingAnimation = {
 const pulseAnimation = {
   initial: { scale: 1 },
   animate: {
-    scale: [1, 1.05, 1],
+    scale: [1, 1.1, 1],
     transition: {
       duration: 2,
+      ease: "easeInOut",
       repeat: Infinity,
-      ease: "easeInOut"
     }
   }
 };
@@ -64,6 +65,14 @@ function AssignmentPage() {
   const [hint, setHint] = useState(null);
   const [isGettingHint, setIsGettingHint] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [showCalculator, setShowCalculator] = useState(false);
+  const [progress, setProgress] = useState({
+    currentQuestion: 0,
+    totalQuestions: 0,
+    correctAnswers: 0,
+    grade: 0
+  });
+  const [canSubmitEarly, setCanSubmitEarly] = useState(false);
 
   useEffect(() => {
     console.log('Assignment ID from URL:', id);
@@ -189,6 +198,10 @@ function AssignmentPage() {
         toast.success(t('practice.messages.correct'));
         setShowSolution(true);
         
+        // Update progress
+        setProgress(response.progress);
+        setCanSubmitEarly(response.canSubmitEarly);
+        
         // Update current question with solution
         if (response.solution) {
           setCurrentQuestion(prev => ({
@@ -197,27 +210,21 @@ function AssignmentPage() {
           }));
         }
 
-        // Check if this was the last question
-        if (!response.nextQuestion) {
-          try {
-            const submitResponse = await submitAssignment(id);
-            console.log('Assignment submit response:', submitResponse);
-            
-            toast.success(t('submitted'), {
-              duration: 5000
-            });
-            
-            setTimeout(() => {
-              navigate('/assignments');
-            }, 3000);
-            
-            return;
-          } catch (submitError) {
-            console.error('Error submitting assignment:', submitError);
-            toast.error(t('assignments.errorSubmitting'));
-          }
-        } else {
-          // Move to next question after delay
+        // Check if assignment is completed
+        if (response.isCompleted) {
+          toast.success(t('assignments.completed'), {
+            duration: 5000
+          });
+          
+          setTimeout(() => {
+            navigate('/assignments');
+          }, 3000);
+          
+          return;
+        }
+
+        // Move to next question after delay
+        if (response.nextQuestion) {
           setTimeout(() => {
             setCurrentQuestion(response.nextQuestion);
             setShowSolution(false);
@@ -235,6 +242,24 @@ function AssignmentPage() {
       toast.error(errorMessage);
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleSubmitAssignment = async () => {
+    try {
+      const response = await submitAssignment(id);
+      console.log('Assignment submit response:', response);
+      
+      toast.success(t('assignments.submitted'), {
+        duration: 5000
+      });
+      
+      setTimeout(() => {
+        navigate('/assignments');
+      }, 3000);
+    } catch (error) {
+      console.error('Error submitting assignment:', error);
+      toast.error(t('assignments.errorSubmitting'));
     }
   };
 
@@ -273,12 +298,49 @@ function AssignmentPage() {
   }
 
   return (
-    <motion.div 
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      className="min-h-screen bg-gradient-to-b from-background via-background to-primary/5"
-    >
+    <div className="min-h-[calc(100vh-4rem)] bg-gradient-to-b from-background to-muted/50">
       <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6">
+        {/* Floating Calculator Button */}
+        <motion.div
+          className="fixed bottom-6 right-6 z-50"
+          variants={floatingAnimation}
+          initial="initial"
+          animate="animate"
+        >
+          <motion.div
+            variants={pulseAnimation}
+            initial="initial"
+            animate="animate"
+            className="p-3 rounded-full bg-primary/10 backdrop-blur-sm shadow-lg cursor-pointer hover:bg-primary/20 transition-colors duration-300"
+            onClick={() => setShowCalculator(true)}
+          >
+            <Calculator className="w-6 h-6 text-primary" />
+          </motion.div>
+        </motion.div>
+
+        {/* Calculator Modal */}
+        <AnimatePresence>
+          {showCalculator && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+              onClick={() => setShowCalculator(false)}
+            >
+              <motion.div
+                initial={{ scale: 0.95 }}
+                animate={{ scale: 1 }}
+                exit={{ scale: 0.95 }}
+                className="w-full max-w-sm"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <CalculatorComponent isOpen={showCalculator} onClose={() => setShowCalculator(false)} />
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* Assignment Header */}
         <motion.div 
           variants={container}
@@ -287,8 +349,8 @@ function AssignmentPage() {
           className="mb-6"
         >
           <div className={`flex items-center gap-2 mb-4 ${isRTL ? 'flex-row-reverse' : ''}`}>
-            <Button 
-              variant="ghost" 
+            <Button
+              variant="ghost"
               size="icon"
               onClick={() => navigate(-1)}
               className="shrink-0"
@@ -301,11 +363,46 @@ function AssignmentPage() {
               animate="animate"
               className="shrink-0"
             >
-              <BookOpen className="w-6 h-6 sm:w-8 sm:h-8 text-primary" />
+              <div className="relative">
+                <Calculator className="w-6 h-6 sm:w-8 sm:h-8 text-primary" />
+                <motion.div
+                  className="absolute -top-1 -right-1 w-2 h-2 bg-primary rounded-full"
+                  animate={{
+                    scale: [1, 1.2, 1],
+                    opacity: [0.5, 1, 0.5]
+                  }}
+                  transition={{
+                    duration: 2,
+                    repeat: Infinity,
+                    ease: "easeInOut"
+                  }}
+                />
+              </div>
             </motion.div>
             <h1 className={`text-lg sm:text-2xl font-bold text-foreground ${isRTL ? 'font-yarden text-right' : 'font-inter text-left'}`}>
               {displayTitle}
             </h1>
+          </div>
+
+          {/* Progress Bar */}
+          <div className="mb-4">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm text-muted-foreground">
+                {t('assignments.progress', { 
+                  current: progress.currentQuestion,
+                  total: progress.totalQuestions
+                })}
+              </span>
+              <span className="text-sm font-medium text-primary">
+                {t('assignments.grade')}: {progress.grade}%
+              </span>
+            </div>
+            <div className="w-full bg-muted rounded-full h-2">
+              <div 
+                className="bg-primary rounded-full h-2 transition-all duration-300"
+                style={{ width: `${(progress.currentQuestion / progress.totalQuestions) * 100}%` }}
+              />
+            </div>
           </div>
 
           {currentQuestion && (
@@ -338,97 +435,47 @@ function AssignmentPage() {
                     <Button
                       type="submit"
                       disabled={isSubmitting || showSolution}
-                      className={`w-full sm:w-auto group hover:bg-primary hover:text-primary-foreground transition-all duration-200 ${isRTL ? 'font-yarden' : 'font-inter'}`}
+                      className={`w-full sm:w-auto ${isRTL ? 'sm:ml-auto' : 'sm:mr-auto'}`}
                     >
-                      <motion.div
-                        variants={pulseAnimation}
-                        initial="initial"
-                        animate="animate"
-                        className="w-4 h-4 mr-2"
-                      >
-                        <Target className="w-full h-full" />
-                      </motion.div>
-                      {t('practice.submit')}
+                      {isSubmitting ? t('submitting') : t('submit')}
                     </Button>
-
-                    {!showSolution && (
+                    
+                    <div className={`flex gap-2 ${isRTL ? 'flex-row-reverse' : ''}`}>
                       <Button
                         type="button"
                         variant="outline"
                         onClick={handleGetHint}
-                        disabled={isGettingHint || showSolution}
-                        className={`w-full sm:w-auto group hover:bg-primary/10 hover:text-primary transition-all duration-200 ${isRTL ? 'font-yarden' : 'font-inter'}`}
+                        disabled={isGettingHint || hint || showSolution}
+                        className="w-full sm:w-auto"
                       >
-                        <HelpCircle className="w-4 h-4 mr-2 group-hover:rotate-12 transition-transform duration-200" />
-                        {t('practice.getHint')}
+                        {isGettingHint ? (
+                          <div className="flex items-center gap-2">
+                            <div className="animate-spin h-4 w-4 border-2 border-primary border-t-transparent rounded-full" />
+                            {t('gettingHint')}
+                          </div>
+                        ) : hint ? (
+                          <div className="flex items-center gap-2">
+                            <HelpCircle className="w-4 h-4" />
+                            {t('hintShown')}
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2">
+                            <HelpCircle className="w-4 h-4" />
+                            {t('getHint')}
+                          </div>
+                        )}
                       </Button>
-                    )}
+                      
+                     
+                    </div>
                   </div>
                 </form>
-
-                <AnimatePresence>
-                  {hint && !showSolution && (
-                    <motion.div
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -20 }}
-                      className="mt-4"
-                    >
-                      <div className="mt-4 p-4 bg-gray-50 rounded-lg">
-                        <p className="font-semibold mb-2">{t('practice.hint', { number: hint.number })}</p>
-                        <p>{hint.text}</p>
-                        {hint.total > hint.number && (
-                          <p className="text-sm text-gray-500 mt-2">
-                            {t('practice.remainingHints', { count: hint.total - hint.number })}
-                          </p>
-                        )}
-                      </div>
-                    </motion.div>
-                  )}
-
-                  {showSolution && (
-                    <motion.div
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -20 }}
-                      className="mt-4"
-                    >
-                      <Card className="border-primary/20 bg-background">
-                        <CardHeader>
-                          <CardTitle className={`text-sm font-medium ${isRTL ? 'text-right font-yarden' : 'text-left font-inter'}`}>
-                            {t('practice.solution')}
-                          </CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                          <div className={`space-y-2 ${isRTL ? 'text-right font-yarden' : 'text-left font-inter'}`}>
-                            {typeof currentQuestion.solution === 'object' && currentQuestion.solution.steps ? (
-                              <>
-                                {currentQuestion.solution.steps.map((step, index) => (
-                                  <p key={index} className="text-sm text-muted-foreground">
-                                    {index + 1}. {step}
-                                  </p>
-                                ))}
-                                <p className="text-sm font-medium text-foreground mt-4">
-                                  {t('practice.finalAnswer')}: {currentQuestion.solution.answer}
-                                </p>
-                              </>
-                            ) : (
-                              <p className="text-sm text-muted-foreground">
-                                {currentQuestion.solution}
-                              </p>
-                            )}
-                          </div>
-                        </CardContent>
-                      </Card>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
               </CardContent>
             </Card>
           )}
         </motion.div>
       </div>
-    </motion.div>
+    </div>
   );
 }
 

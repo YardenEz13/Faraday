@@ -85,7 +85,7 @@ export default function LoginPage() {
           <Sparkles className="w-8 h-8 text-teal-500 dark:text-teal-400" />
         </motion.div>
 
-        <Card className="w-full backdrop-blur-sm bg-white/90 dark:bg-gray-800/90 shadow-xl border-white/20 dark:border-gray-700/20 hover:shadow-2xl hover:scale-[1.01] transition-all duration-300">
+        <Card className="w-full hover:shadow-2xl hover:scale-[1.01] transition-all duration-300">
           <CardHeader>
             <CardTitle className={`text-2xl ${isRTL ? 'font-yarden' : 'font-inter'} text-${isRTL ? 'right' : 'left'} transition-all duration-300 text-center`}>
               {t('auth.login')}

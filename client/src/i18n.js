@@ -7,6 +7,7 @@ import { Edit } from 'lucide-react';
 const resources = {
   en: {
     translation: {
+      selectTopic:"Select Topic",
       assignHomework:"Assign Homework",
       mathLevel:"Math Level",
       noAssignments:"No Assignments Yet",
@@ -90,7 +91,11 @@ const resources = {
           pending: "Pending"
         },
         assignToTeacher: "Assign to Teacher",
-        assignHomework: "Assign Homework"
+        assignHomework: "Assign Homework",
+        adaptiveMode: "Adaptive Learning Mode",
+        adaptiveDesc1: "Questions adapt to each student's level",
+        adaptiveDesc2: "Difficulty adjusts based on performance",
+        adaptiveDesc3: "Personalized learning path for optimal progress"
       },
       nav: {
         dashboard: "Dashboard",
@@ -174,6 +179,8 @@ const resources = {
         description: "Choose a topic for adaptive practice - difficulty will adjust to your math level",
         calculating: "Calculating",
         start: "Start Practice",
+        yourAnswer: "Your Answer",
+        enterAnswer: "Enter your answer here",
         topics: {
           equations: {
             title: "System of Equations",
@@ -273,6 +280,8 @@ const resources = {
       createAssignment: {
         title: "Create Assignment",
         description: "Create a new assignment for your students",
+        details: "Assignment Details",
+        detailsDesc: "Configure the assignment settings and adaptive learning parameters",
         selectTopic: "Select Topic",
         assignmentTitle: "Assignment Title",
         assignmentType: "Assignment Type",
@@ -338,6 +347,9 @@ const resources = {
   },
   he: {
     translation: {
+      selectTopic:"בחר נושא",
+      selected:"נבחר",
+      getHint:"קבל רמז",
       assignHomework:"צור שיעורי בית",
       assignmentHistory:"היסטוריית משימות",
       viewAssignment:"צפה במשימה",
@@ -418,7 +430,11 @@ const resources = {
           pending: "ממתין"
         },
         assignToTeacher: "שייך למורה",
-        assignHomework: "תן שיעורי בית"
+        assignHomework: "תן שיעורי בית",
+        adaptiveMode: "מצב למידה מסתגל",
+        adaptiveDesc1: "השאלות מותאמות לרמת כל תלמיד",
+        adaptiveDesc2: "רמת הקושי מתכווננת בהתאם לביצועים",
+        adaptiveDesc3: "מסלול למידה מותאם אישית להתקדמות מיטבית"
       },
       calculator: {
         title: "מחשבון",
@@ -502,6 +518,8 @@ const resources = {
         description: "בחר נושא לתרגול מותאם אישית - רמת הקושי תותאם לרמת המתמטיקה שלך",
         calculating: "מחשב",
         start: "התחל תרגול",
+        yourAnswer: "התשובה שלך",
+        enterAnswer: "הכנס את תשובתך כאן",
         topics: {
           equations: {
             title: "מערכת משוואות",
@@ -601,6 +619,8 @@ const resources = {
       createAssignment: {
         title: "צור משימה",
         description: "צור משימה חדשה לתלמידים שלך",
+        details: "פרטי המשימה",
+        detailsDesc: "הגדר את הגדרות המשימה ופרמטרים של למידה מסתגלת",
         selectTopic: "בחר נושא",
         assignmentTitle: "כותרת המשימה",
         assignmentType: "סוג המשימה",

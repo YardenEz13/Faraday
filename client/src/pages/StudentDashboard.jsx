@@ -62,32 +62,6 @@ const glowAnimation = {
   }
 };
 
-const cardHoverAnimation = {
-  rest: { scale: 1, y: 0 },
-  hover: { 
-    scale: 1.02,
-    y: -5,
-    transition: {
-      type: "spring",
-      stiffness: 400,
-      damping: 10
-    }
-  }
-};
-
-const shimmerAnimation = {
-  initial: {
-    backgroundPosition: "-200% 0",
-  },
-  animate: {
-    backgroundPosition: "200% 0",
-    transition: {
-      repeat: Infinity,
-      duration: 2,
-    },
-  },
-};
-
 function StudentDashboard() {
   const { t, i18n } = useTranslation();
   const [studentData, setStudentData] = useState(null);
@@ -198,69 +172,43 @@ function StudentDashboard() {
       (assignment.title || t('untitled'));
 
     return (
-      <Card className="relative overflow-hidden border-primary/20 bg-gradient-to-br from-background via-background to-primary/5 hover:shadow-xl transition-all duration-300">
-        <motion.div
-          variants={cardHoverAnimation}
-          initial="rest"
-          whileHover="hover"
-          className="relative z-10"
-        >
-          <div className="absolute inset-0 bg-gradient-to-r from-teal-500/10 via-emerald-500/10 to-teal-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-          <CardHeader className="relative border-b border-primary/10">
-            <CardTitle className="flex items-center gap-3">
-              <motion.div
-                className="p-2 rounded-xl bg-primary/10 text-primary"
-                whileHover={{ rotate: [0, -10, 10, -10, 0] }}
-                transition={{ duration: 0.5 }}
-              >
-                <BookOpen className="w-5 h-5 text-primary" />
-              </motion.div>
-              <span className="text-lg font-semibold group-hover:text-primary transition-colors duration-300">
-                {displayTitle}
-              </span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className={`text-sm text-muted-foreground ${isRTL ? 'text-right font-yarden' : 'text-left font-inter'}`}>
-              {t('due')}: {formatDate(assignment.dueDate)}
+      <Card className="border-primary/20 bg-background h-full flex flex-col">
+        <CardHeader className="flex-none p-4 sm:p-6">
+          <CardTitle className={`text-base sm:text-lg text-foreground ${isRTL ? 'text-right font-yarden' : 'text-left font-inter'}`}>
+            {displayTitle}
+          </CardTitle>
+          <div className={`text-sm text-muted-foreground ${isRTL ? 'text-right font-yarden' : 'text-left font-inter'}`}>
+            {t('due')}: {formatDate(assignment.dueDate)}
+          </div>
+        </CardHeader>
+        <CardContent className="flex-1 flex flex-col justify-between p-4 sm:p-6 pt-0">
+          <p className={`mb-4 text-sm text-muted-foreground line-clamp-2 ${isRTL ? 'text-right font-yarden' : 'text-left font-inter'}`}>
+            {assignment.description}
+          </p>
+          <div className={`flex flex-col sm:flex-row gap-3 sm:gap-0 sm:justify-between sm:items-center ${isRTL ? 'sm:flex-row-reverse' : ''}`}>
+            <Button 
+              asChild
+              variant="outline"
+              className={`w-full sm:w-auto order-2 sm:order-1 hover:bg-primary/10 hover:text-primary transition-colors border-primary/20 text-foreground text-sm ${isRTL ? 'font-yarden' : 'font-inter'}`}
+            >
+              <Link to={`/assignment/${assignment._id}`}>
+                {(assignment.status === 'submitted' || assignment.status === 'graded') ? t('viewAssignment') : t('startAssignment')}
+              </Link>
+            </Button>
+            <div className={`flex items-center justify-end gap-2 order-1 sm:order-2 ${isRTL ? 'flex-row-reverse' : ''}`}>
+              {(assignment.status === 'submitted' || assignment.status === 'graded') && (
+                <span className="text-sm text-green-600 dark:text-green-400 font-medium">
+                  {t('completed')} ✓
+                </span>
+              )}
+              {assignment.isLate && (
+                <span className="text-sm text-red-600 dark:text-red-400 font-medium">
+                  {t('late')}!
+                </span>
+              )}
             </div>
-            <p className={`mb-4 text-sm text-muted-foreground line-clamp-2 ${isRTL ? 'text-right font-yarden' : 'text-left font-inter'}`}>
-              {assignment.description}
-            </p>
-            <div className={`flex flex-col sm:flex-row gap-3 sm:gap-0 sm:justify-between sm:items-center ${isRTL ? 'sm:flex-row-reverse' : ''}`}>
-              <Button 
-                asChild
-                variant="outline"
-                className={`w-full sm:w-auto order-2 sm:order-1 hover:bg-primary/10 hover:text-primary transition-colors border-primary/20 text-foreground text-sm ${isRTL ? 'font-yarden' : 'font-inter'}`}
-              >
-                <Link to={`/assignment/${assignment._id}`}>
-                  {(assignment.status === 'submitted' || assignment.status === 'graded') ? t('viewAssignment') : t('startAssignment')}
-                </Link>
-              </Button>
-              <div className={`flex items-center justify-end gap-2 order-1 sm:order-2 ${isRTL ? 'flex-row-reverse' : ''}`}>
-                {(assignment.status === 'submitted' || assignment.status === 'graded') && (
-                  <span className="text-sm text-green-600 dark:text-green-400 font-medium">
-                    {t('completed')} ✓
-                  </span>
-                )}
-                {assignment.isLate && (
-                  <span className="text-sm text-red-600 dark:text-red-400 font-medium">
-                    {t('late')}!
-                  </span>
-                )}
-              </div>
-            </div>
-          </CardContent>
-        </motion.div>
-        <motion.div
-          className="absolute inset-0 bg-gradient-to-r from-primary/10 via-transparent to-primary/10 opacity-20"
-          variants={shimmerAnimation}
-          initial="initial"
-          animate="animate"
-          style={{
-            backgroundSize: "200% 100%",
-          }}
-        />
+          </div>
+        </CardContent>
       </Card>
     );
   };
@@ -291,7 +239,7 @@ function StudentDashboard() {
               >
                 <Sparkles className="w-6 h-6 sm:w-8 sm:h-8 text-primary shrink-0" />
               </motion.div>
-              <h1 className={`text-lg sm:text-3xl font-bold bg-gradient-to-r from-primary via-purple-500 to-primary bg-clip-text text-transparent ${isRTL ? 'font-yarden text-right' : 'font-inter text-left'}`}>
+              <h1 className={`text-lg sm:text-3xl font-bold bg-gradient-to-r from-primary via-primary/50 to-primary bg-clip-text text-transparent ${isRTL ? 'font-yarden text-right' : 'font-inter text-left'}`}>
                 {t('myAssignments')}
               </h1>
             </motion.div>
@@ -319,13 +267,9 @@ function StudentDashboard() {
           {/* Student Stats */}
           <motion.div 
             variants={container}
-            className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8"
+            className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"
           >
-            <motion.div
-              variants={item}
-              whileHover={{ scale: 1.02 }}
-              className="group"
-            >
+            <motion.div variants={item}>
               <Link to="/levels" className="block">
                 <Card className="p-4 border-primary/20 bg-gradient-to-br from-background to-primary/5 hover:shadow-lg hover:shadow-primary/10 transition-all duration-300 cursor-pointer group">
                   <div className={`flex items-center gap-3 ${isRTL ? 'flex-row-reverse' : ''}`}>
@@ -353,89 +297,54 @@ function StudentDashboard() {
               </Link>
             </motion.div>
 
-            <motion.div
-              variants={item}
-              whileHover={{ scale: 1.02 }}
-              className="group"
-            >
-              <Card className="p-4 border-primary/20 bg-gradient-to-br from-background to-primary/5 hover:shadow-lg hover:shadow-primary/10 transition-all duration-300">
+            <motion.div variants={item}>
+              <Card className="p-4 border-primary/20 bg-gradient-to-br from-background to-primary/5">
                 <div className={`flex items-center gap-3 ${isRTL ? 'flex-row-reverse' : ''}`}>
                   <motion.div 
                     variants={glowAnimation}
                     initial="initial"
                     animate="animate"
-                    className="p-2 bg-primary/10 rounded-lg shrink-0 group-hover:bg-primary/20 transition-colors duration-300"
+                    className="p-2 bg-primary/10 rounded-lg shrink-0"
                   >
                     <Trophy className="w-5 h-5 text-primary" />
                   </motion.div>
                   <div className={`${isRTL ? 'font-yarden text-right' : 'font-inter text-left'}`}>
                     <p className="text-sm text-muted-foreground">{t('completionRate')}</p>
-                    <motion.p 
-                      className="text-xl sm:text-2xl font-semibold text-foreground"
+                    <motion.div 
                       variants={pulseAnimation}
                       initial="initial"
                       animate="animate"
+                      className="flex items-center gap-2"
                     >
-                      {completionRate}%
-                    </motion.p>
+                      <p className="text-xl sm:text-2xl font-semibold text-foreground">{completionRate}%</p>
+                      {completionRate >= 80 && <Star className="w-4 h-4 text-yellow-500" />}
+                    </motion.div>
                   </div>
                 </div>
               </Card>
             </motion.div>
 
-            <motion.div
-              variants={item}
-              whileHover={{ scale: 1.02 }}
-              className="group"
-            >
-              <Card className="p-4 border-primary/20 bg-gradient-to-br from-background to-primary/5 hover:shadow-lg hover:shadow-primary/10 transition-all duration-300">
+            <motion.div variants={item}>
+              <Card className="p-4 border-primary/20 bg-gradient-to-br from-background to-primary/5">
                 <div className={`flex items-center gap-3 ${isRTL ? 'flex-row-reverse' : ''}`}>
                   <motion.div 
                     variants={glowAnimation}
                     initial="initial"
                     animate="animate"
-                    className="p-2 bg-primary/10 rounded-lg shrink-0 group-hover:bg-primary/20 transition-colors duration-300"
+                    className="p-2 bg-primary/10 rounded-lg shrink-0"
                   >
                     <Award className="w-5 h-5 text-primary" />
                   </motion.div>
                   <div className={`${isRTL ? 'font-yarden text-right' : 'font-inter text-left'}`}>
-                    <p className="text-sm text-muted-foreground">{t('completedAssignments')}</p>
+                    <p className="text-sm text-muted-foreground">{t('nav.assignments')}</p>
                     <motion.p 
-                      className="text-xl sm:text-2xl font-semibold text-foreground"
                       variants={pulseAnimation}
                       initial="initial"
                       animate="animate"
-                    >
-                      {completedAssignments}
-                    </motion.p>
-                  </div>
-                </div>
-              </Card>
-            </motion.div>
-
-            <motion.div
-              variants={item}
-              whileHover={{ scale: 1.02 }}
-              className="group"
-            >
-              <Card className="p-4 border-primary/20 bg-gradient-to-br from-background to-primary/5 hover:shadow-lg hover:shadow-primary/10 transition-all duration-300">
-                <div className={`flex items-center gap-3 ${isRTL ? 'flex-row-reverse' : ''}`}>
-                  <motion.div 
-                    variants={glowAnimation}
-                    initial="initial"
-                    animate="animate"
-                    className="p-2 bg-primary/10 rounded-lg shrink-0 group-hover:bg-primary/20 transition-colors duration-300"
-                  >
-                    <Zap className="w-5 h-5 text-primary" />
-                  </motion.div>
-                  <div className={`${isRTL ? 'font-yarden text-right' : 'font-inter text-left'}`}>
-                    <p className="text-sm text-muted-foreground">{t('totalAssignments')}</p>
-                    <motion.p 
                       className="text-xl sm:text-2xl font-semibold text-foreground"
-                      variants={pulseAnimation}
-                      initial="initial"
-                      animate="animate"
                     >
+                      <span className="text-green-600 dark:text-green-400">{completedAssignments}</span>
+                      {' / '}
                       {totalAssignments}
                     </motion.p>
                   </div>

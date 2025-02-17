@@ -19,6 +19,31 @@ const DIFFICULTY_LEVELS = {
   HARD: 3
 };
 
+const floatingAnimation = {
+  initial: { y: 20, opacity: 0 },
+  animate: { 
+    y: 0, 
+    opacity: 1,
+    transition: {
+      type: "spring",
+      stiffness: 200,
+      damping: 20
+    }
+  }
+};
+
+const pulseAnimation = {
+  initial: { scale: 1 },
+  animate: {
+    scale: [1, 1.05, 1],
+    transition: {
+      duration: 2,
+      repeat: Infinity,
+      ease: "easeInOut"
+    }
+  }
+};
+
 function AdaptivePracticePage() {
   const { topicId } = useParams();
   const navigate = useNavigate();
@@ -149,8 +174,9 @@ function AdaptivePracticePage() {
         topic: topicId,
         answer: userAnswer
       });
+      console.log(response);
       
-      if (response.success) {
+      if (response.isCorrect) {
         toast.success(
           <div className="flex flex-col items-center gap-2">
             <span className="text-2xl">🎉</span>
@@ -282,132 +308,144 @@ function AdaptivePracticePage() {
   };
 
   return (
-    <div className={`min-h-[calc(100vh-4rem)] w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 ${isRTL ? 'font-yarden' : 'font-inter'}`} dir={isRTL ? 'rtl' : 'ltr'}>
-      <div className={`flex items-center gap-2 mb-4 sm:mb-6 ${isRTL ? 'flex-row-reverse' : ''}`}>
-        <Button 
-          variant="outline" 
-          className="shrink-0"
-          onClick={() => navigate('/practice')}
-        >
-          <ArrowLeft className={`w-4 h-4 ${isRTL ? 'ml-2 rotate-180' : 'mr-2'}`} />
-          {t('common.back')}
-        </Button>
-        <h1 className={`text-lg sm:text-2xl font-bold text-foreground ${isRTL ? 'text-right' : 'text-left'}`}>
-          {t('practice.adaptivePractice')}
-        </h1>
-        <Button
-          variant="outline"
-          className="ml-auto shrink-0"
-          onClick={() => setShowCalculator(true)}
-        >
-          <CalculatorIcon className="w-4 h-4 mr-2" />
-          {t('calculator.open')}
-        </Button>
-      </div>
+    <div className="relative min-h-screen">
+      <div className={`min-h-[calc(100vh-4rem)] w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 ${isRTL ? 'font-yarden' : 'font-inter'}`} dir={isRTL ? 'rtl' : 'ltr'}>
+        <div className={`flex items-center gap-2 mb-4 sm:mb-6 ${isRTL ? 'flex-row-reverse' : ''}`}>
+          <Button 
+            variant="outline" 
+            className="shrink-0"
+            onClick={() => navigate('/practice')}
+          >
+            <ArrowLeft className={`w-4 h-4 ${isRTL ? 'ml-2 rotate-180' : 'mr-2'}`} />
+            {t('common.back')}
+          </Button>
+          <h1 className={`text-lg sm:text-2xl font-bold text-foreground ${isRTL ? 'text-right' : 'text-left'}`}>
+            {t('practice.adaptivePractice')}
+          </h1>
+        </div>
 
-      <Calculator isOpen={showCalculator} onClose={() => setShowCalculator(false)} />
+        <Calculator isOpen={showCalculator} onClose={() => setShowCalculator(false)} />
 
-      <AnimatePresence>
-        {renderCalculatorAnimation()}
-      </AnimatePresence>
+        <AnimatePresence>
+          {renderCalculatorAnimation()}
+        </AnimatePresence>
 
-      <div className="space-y-4 sm:space-y-6">
-        <Card className="border-primary/20">
-          <CardContent className="p-4 sm:p-6">
-            {currentProblem ? (
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <h2 className={`text-base sm:text-lg font-semibold ${isRTL ? 'text-right' : 'text-left'}`}>
-                    {t('practice.questions.title')}
-                  </h2>
-                  <p className={`text-sm sm:text-base ${isRTL ? 'text-right' : 'text-left'}`}>
-                    {currentProblem.description}
-                  </p>
-                </div>
-                
-                <div className="bg-muted p-3 sm:p-4 rounded-md">
-                  <pre className="whitespace-pre-wrap font-mono text-sm sm:text-base overflow-x-auto" dir="ltr">
-                    {currentProblem.equation}
-                  </pre>
-                </div>
-
+        <div className="space-y-4 sm:space-y-6">
+          <Card className="border-primary/20">
+            <CardContent className="p-4 sm:p-6">
+              {currentProblem ? (
                 <div className="space-y-4">
                   <div className="space-y-2">
-                    <label className={`text-sm font-medium block ${isRTL ? 'text-right' : 'text-left'}`}>
-                      {t('practice.questions.answer')}
-                    </label>
+                    <h2 className={`text-base sm:text-lg font-semibold ${isRTL ? 'text-right' : 'text-left'}`}>
+                      {t('practice.questions.title')}
+                    </h2>
+                    <p className={`text-sm sm:text-base ${isRTL ? 'text-right' : 'text-left'}`}>
+                      {currentProblem.description}
+                    </p>
+                  </div>
+                  
+                  <div className="bg-muted p-3 sm:p-4 rounded-md">
+                    <pre className="whitespace-pre-wrap font-mono text-sm sm:text-base overflow-x-auto" dir="ltr">
+                      {currentProblem.equation}
+                    </pre>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <label className={`text-sm font-medium block ${isRTL ? 'text-right' : 'text-left'}`}>
+                        {t('practice.questions.answer')}
+                      </label>
+                      <div className={`flex flex-col sm:flex-row gap-2 ${isRTL ? 'sm:flex-row-reverse' : ''}`}>
+                        <Input
+                          value={userAnswer}
+                          onChange={(e) => setUserAnswer(e.target.value)}
+                          placeholder={t('practice.equationPlaceholder')}
+                          disabled={showSolution}
+                          dir="ltr"
+                          className="font-mono"
+                        />
+                        <Button
+                          onClick={handleGetHint}
+                          variant="outline"
+                          disabled={isGettingHint || hint}
+                          className="w-full sm:w-auto"
+                        >
+                          {isGettingHint ? t('common.loading') : t('practice.getHint')}
+                        </Button>
+                      </div>
+                    </div>
+
                     <div className={`flex flex-col sm:flex-row gap-2 ${isRTL ? 'sm:flex-row-reverse' : ''}`}>
-                      <Input
-                        value={userAnswer}
-                        onChange={(e) => setUserAnswer(e.target.value)}
-                        placeholder={t('practice.equationPlaceholder')}
-                        disabled={showSolution}
-                        dir="ltr"
-                        className="font-mono"
-                      />
                       <Button
-                        onClick={handleGetHint}
                         variant="outline"
-                        disabled={isGettingHint || hint}
+                        onClick={generateNewProblem}
+                        disabled={isLoading}
                         className="w-full sm:w-auto"
                       >
-                        {isGettingHint ? t('common.loading') : t('practice.getHint')}
+                        {t('practice.questions.skip')}
+                      </Button>
+                      <Button
+                        onClick={handleSubmit}
+                        disabled={isLoading || !userAnswer}
+                        className="w-full sm:w-auto"
+                      >
+                        {isLoading ? t('practice.checking') : t('practice.questions.submit')}
                       </Button>
                     </div>
+
+                    {hint && (
+                      <div className="bg-muted p-3 rounded-md">
+                        <p className={`text-sm ${isRTL ? 'text-right' : 'text-left'}`}>
+                          {t('practice.hint', { number: hintsUsed })}
+                        </p>
+                        <p className={`text-sm ${isRTL ? 'text-right' : 'text-left'}`}>{hint}</p>
+                      </div>
+                    )}
+
+                    {renderSolution()}
                   </div>
-
-                  <div className={`flex flex-col sm:flex-row gap-2 ${isRTL ? 'sm:flex-row-reverse' : ''}`}>
-                    <Button
-                      variant="outline"
-                      onClick={generateNewProblem}
-                      disabled={isLoading}
-                      className="w-full sm:w-auto"
-                    >
-                      {t('practice.questions.skip')}
-                    </Button>
-                    <Button
-                      onClick={handleSubmit}
-                      disabled={isLoading || !userAnswer}
-                      className="w-full sm:w-auto"
-                    >
-                      {isLoading ? t('practice.checking') : t('practice.questions.submit')}
-                    </Button>
-                  </div>
-
-                  {hint && (
-                    <div className="bg-muted p-3 rounded-md">
-                      <p className={`text-sm ${isRTL ? 'text-right' : 'text-left'}`}>
-                        {t('practice.hint', { number: hintsUsed })}
-                      </p>
-                      <p className={`text-sm ${isRTL ? 'text-right' : 'text-left'}`}>{hint}</p>
-                    </div>
-                  )}
-
-                  {renderSolution()}
                 </div>
-              </div>
-            ) : (
-              <div className="text-center py-8">
-                <p className="text-muted-foreground">{t('practice.questions.loading')}</p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+              ) : (
+                <div className="text-center py-8">
+                  <p className="text-muted-foreground">{t('practice.questions.loading')}</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
 
-        {rewards.length > 0 && (
-          <div className="space-y-2">
-            {rewards.map((reward, index) => (
-              <Card key={index} className="border-primary/20">
-                <CardContent className="p-3 sm:p-4">
-                  <p className={`text-sm ${isRTL ? 'text-right' : 'text-left'}`}>
-                    {reward.message}
-                  </p>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        )}
+          {rewards.length > 0 && (
+            <div className="space-y-2">
+              {rewards.map((reward, index) => (
+                <Card key={index} className="border-primary/20">
+                  <CardContent className="p-3 sm:p-4">
+                    <p className={`text-sm ${isRTL ? 'text-right' : 'text-left'}`}>
+                      {reward.message}
+                    </p>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
+
+      {/* Floating Calculator Button */}
+      <motion.div
+        className="fixed bottom-6 right-6 z-50"
+        variants={floatingAnimation}
+        initial="initial"
+        animate="animate"
+      >
+        <motion.div
+          variants={pulseAnimation}
+          initial="initial"
+          animate="animate"
+          className="p-3 rounded-full bg-primary/10 backdrop-blur-sm shadow-lg cursor-pointer hover:bg-primary/20 transition-colors duration-300"
+          onClick={() => setShowCalculator(true)}
+        >
+          <CalculatorIcon className="w-6 h-6 text-primary" />
+        </motion.div>
+      </motion.div>
     </div>
   );
 }

@@ -378,7 +378,11 @@ export const createAssignment = async (assignmentData) => {
 
 export const getStudentDashboard = async () => {
   try {
-    const response = await axios.get(`${API_URL}/dashboard/student`);
+    const response = await axios.get(`${API_URL}/dashboard/student`, {
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('token')}`
+      }
+    });
     return response.data;
   } catch (error) {
     handleApiError(error);
@@ -451,11 +455,17 @@ export const sendAssignmentToStudent = async (studentId, assignment) => {
 
 // Create a new adaptive assignment
 export const createAdaptiveAssignment = async (data) => {
-  const response = await axios.post('/api/assignments/create', {
-    ...data,
-    isAdaptive: true
-  });
-  return response.data;
+  try {
+    const response = await axios.post(`${API_URL}/assignments/adaptive`, data, {
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('token')}`
+      }
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Error creating adaptive assignment:', error);
+    throw error;
+  }
 };
 
 export const submitAssignment = async (assignmentId) => {

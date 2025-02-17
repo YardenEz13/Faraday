@@ -30,11 +30,11 @@ const userSchema = new mongoose.Schema({
   mathLevel: {
     type: Number,
     default: 1.0
+    
   },
   // Add topic-specific levels for adaptive learning
   topicLevels: {
-    type: Map,
-    of: Number,
+    type: Object,
     default: {}
   },
   // Track consecutive correct/incorrect answers
@@ -87,11 +87,11 @@ userSchema.methods.updateTopicLevel = async function(topic, isCorrect) {
 
   // Initialize topicLevels if it doesn't exist
   if (!this.topicLevels) {
-    this.topicLevels = new Map();
+    this.topicLevels = {};
   }
   
   // Get current level with proper numeric conversion
-  const currentLevel = Number(this.topicLevels.get(topic)) || 1.0;
+  const currentLevel = Number(this.topicLevels[topic]) || 1.0;
   console.log('Current level for topic', topic, ':', currentLevel);
   
   if (isCorrect) {
@@ -114,8 +114,8 @@ userSchema.methods.updateTopicLevel = async function(topic, isCorrect) {
       }
       
       const newLevel = Math.min(10, currentLevel + increase);
-      this.topicLevels.set(topic, Math.round(newLevel * 10) / 10);
-      console.log('New level after increase:', this.topicLevels.get(topic));
+      this.topicLevels[topic] = Math.round(newLevel * 10) / 10;
+      console.log('New level after increase:', this.topicLevels[topic]);
       this.consecutiveCorrect = 0;
     }
   } else {
@@ -135,18 +135,24 @@ userSchema.methods.updateTopicLevel = async function(topic, isCorrect) {
       }
       
       const newLevel = Math.max(1, currentLevel - decrease);
-      this.topicLevels.set(topic, Math.round(newLevel * 10) / 10);
-      console.log('New level after decrease:', this.topicLevels.get(topic));
+      this.topicLevels[topic] = Math.round(newLevel * 10) / 10;
+      console.log('New level after decrease:', this.topicLevels[topic]);
       this.consecutiveIncorrect = 0;
     }
   }
 
+  // Ensure the topic level is still in the object before saving
+  if (!(topic in this.topicLevels)) {
+    this.topicLevels[topic] = currentLevel;
+    console.log('Restored missing topic level for:', topic);
+  }
+
   // Calculate and update the average math level from practiced topics
-  const levels = Array.from(this.topicLevels.values())
+  const levels = Object.values(this.topicLevels)
     .map(level => Number(level))
     .filter(level => !isNaN(level) && level >= 1);
   
-  console.log('All topic levels:', levels);
+  console.log('All topic levels before save:', {...this.topicLevels});
 
   if (levels.length > 0) {
     const totalLevel = levels.reduce((sum, level) => sum + level, 0);
@@ -162,38 +168,59 @@ userSchema.methods.updateTopicLevel = async function(topic, isCorrect) {
   this.markModified('mathLevel');
   await this.save();
   
-  return this.topicLevels.get(topic);
+  return this.topicLevels[topic];
 };
 
 // Method to get topic level
 userSchema.methods.getTopicLevel = function(topic) {
-  const level = Number(this.topicLevels?.get(topic));
+  const level = Number(this.topicLevels?.[topic]);
   return !isNaN(level) && level >= 1 ? level : 1.0;
 };
 
 // Method to get all topic levels
 userSchema.methods.getAllTopicLevels = function() {
   return Object.fromEntries(
-    Array.from(this.topicLevels || new Map()).map(([topic, level]) => {
+    Object.entries(this.topicLevels || {}).map(([topic, level]) => {
       const numericLevel = Number(level);
       return [topic, !isNaN(numericLevel) && numericLevel >= 1 ? numericLevel : 1.0];
     })
   );
 };
 
-// Pre-save middleware to update mathLevel
+// Add pre-save middleware to calculate mathLevel
 userSchema.pre('save', function(next) {
-  if (this.isModified('topicLevels')) {
-    const levels = Array.from(this.topicLevels?.values() || [])
-      .map(level => Number(level))
-      .filter(level => !isNaN(level) && level >= 1);
-
-    if (levels.length > 0) {
-      const totalLevel = levels.reduce((sum, level) => sum + level, 0);
-      this.mathLevel = Math.round((totalLevel / levels.length) * 10) / 10;
-      console.log('Pre-save: updating math level to:', this.mathLevel);
+  // Create a copy of topicLevels to prevent modification during save
+  const currentTopicLevels = { ...this.topicLevels };
+  
+  // Only calculate if topicLevels exists and has values
+  if (currentTopicLevels && Object.keys(currentTopicLevels).length > 0) {
+    const validLevels = Object.entries(currentTopicLevels)
+      .filter(([topic, level]) => typeof level === 'number' && !isNaN(level) && level > 0)
+      .map(([topic, level]) => ({ topic, level }));
+    
+    if (validLevels.length > 0) {
+      const sum = validLevels.reduce((a, b) => a + b.level, 0);
+      this.mathLevel = parseFloat((sum / validLevels.length).toFixed(2));
+      
+      // Ensure all valid levels are preserved
+      validLevels.forEach(({ topic, level }) => {
+        if (!this.topicLevels[topic]) {
+          this.topicLevels[topic] = level;
+        }
+      });
+      
+      console.log('Pre-save: Updated mathLevel to', this.mathLevel, 'from topics:', {...this.topicLevels});
+    } else {
+      this.mathLevel = 1.0;
+      console.log('Pre-save: Reset mathLevel to 1.0 due to no valid topic levels');
     }
+  } else {
+    this.mathLevel = 1.0;
+    console.log('Pre-save: Set default mathLevel to 1.0');
   }
+  
+  // Mark topicLevels as modified to ensure it's saved
+  this.markModified('topicLevels');
   next();
 });
 

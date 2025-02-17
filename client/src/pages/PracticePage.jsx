@@ -82,90 +82,92 @@ export default function PracticePage() {
   };
 
   return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      className={`w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 ${isRTL ? 'font-yarden' : 'font-inter'}`}
-      dir={isRTL ? 'rtl' : 'ltr'}
-    >
-      <motion.div 
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className={`flex items-center gap-3 mb-8 ${isRTL ? 'flex-row-reverse' : ''}`}
-      >
-        <Brain className="w-8 h-8 text-teal-500" />
-        <div>
-          <h1 className="text-2xl font-bold bg-gradient-to-r from-teal-500 to-emerald-500 bg-clip-text text-transparent">
-            {t('practice.title')}
-          </h1>
-          <p className="text-muted-foreground mt-1">{t('practice.description')}</p>
-        </div>
-      </motion.div>
-
+    <div className="relative min-h-screen">
       <motion.div
-        variants={container}
-        initial="hidden"
-        animate="show"
-        className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        className={`w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 ${isRTL ? 'font-yarden' : 'font-inter'}`}
+        dir={isRTL ? 'rtl' : 'ltr'}
       >
-        <AnimatePresence mode="popLayout">
-          {topics.map((topic) => {
-            const TopicIcon = topic.icon;
-            const isHovered = hoveredTopic === topic.id;
+        <motion.div 
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className={`flex items-center gap-3 mb-8 ${isRTL ? 'flex-row-reverse' : ''}`}
+        >
+          <Brain className="w-8 h-8 text-teal-500" />
+          <div>
+            <h1 className="text-2xl font-bold bg-gradient-to-r from-teal-500 to-emerald-500 bg-clip-text text-transparent">
+              {t('practice.title')}
+            </h1>
+            <p className="text-muted-foreground mt-1">{t('practice.description')}</p>
+          </div>
+        </motion.div>
 
-            return (
-              <motion.div
-                key={topic.id}
-                variants={item}
-                layout
-                whileHover={{ 
-                  scale: 1.03,
-                  transition: { type: "spring", stiffness: 300, damping: 10 }
-                }}
-                onHoverStart={() => setHoveredTopic(topic.id)}
-                onHoverEnd={() => setHoveredTopic(null)}
-                onClick={() => handleTopicClick(topic.id)}
-                className="cursor-pointer group"
-              >
-                <Card className={`relative overflow-hidden border-primary/20 bg-gradient-to-br from-background to-muted/50 hover:shadow-lg transition-all duration-300`}>
-                  <motion.div
-                    className={`absolute inset-0 bg-gradient-to-br ${topic.gradient} opacity-0 group-hover:opacity-100 transition-opacity duration-300`}
-                  />
-                  <CardHeader className="relative">
-                    <CardTitle className={`flex items-center gap-3 ${isRTL ? 'flex-row-reverse' : ''}`}>
-                      <motion.div 
-                        className={`p-2 rounded-xl bg-background/80 backdrop-blur-sm shadow-sm ${topic.color} group-hover:scale-110 transition-transform duration-300`}
-                        whileHover={{ rotate: [0, -10, 10, -10, 0] }}
-                        transition={{ duration: 0.5 }}
-                      >
-                        <TopicIcon className="w-5 h-5" />
-                      </motion.div>
-                      <span className="group-hover:text-primary transition-colors duration-300">
-                        {t(`practice.topics.${topic.id}.title`)}
-                      </span>
-                    </CardTitle>
-                    <CardDescription className={isRTL ? 'text-right' : 'text-left'}>
-                      {t(`practice.topics.${topic.id}.description`)}
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="relative pb-4">
+        <motion.div
+          variants={container}
+          initial="hidden"
+          animate="show"
+          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6"
+        >
+          <AnimatePresence mode="popLayout">
+            {topics.map((topic) => {
+              const TopicIcon = topic.icon;
+              const isHovered = hoveredTopic === topic.id;
+
+              return (
+                <motion.div
+                  key={topic.id}
+                  variants={item}
+                  layout
+                  whileHover={{ 
+                    scale: 1.03,
+                    transition: { type: "spring", stiffness: 300, damping: 10 }
+                  }}
+                  onHoverStart={() => setHoveredTopic(topic.id)}
+                  onHoverEnd={() => setHoveredTopic(null)}
+                  onClick={() => handleTopicClick(topic.id)}
+                  className="cursor-pointer group"
+                >
+                  <Card className={`relative overflow-hidden border-primary/20 bg-gradient-to-br from-background to-muted/50 hover:shadow-lg transition-all duration-300`}>
                     <motion.div
-                      animate={{ 
-                        x: isHovered ? (isRTL ? -5 : 5) : 0,
-                        transition: { type: "spring", stiffness: 300, damping: 10 }
-                      }}
-                      className={`flex items-center gap-1 text-sm ${topic.color} ${isRTL ? 'flex-row-reverse' : ''}`}
-                    >
-                      <span>{t('practice.start')}</span>
-                      <ChevronRight className={`w-4 h-4 ${isRTL ? 'rotate-180' : ''} group-hover:translate-x-1 transition-transform duration-300`} />
-                    </motion.div>
-                  </CardContent>
-                </Card>
-              </motion.div>
-            );
-          })}
-        </AnimatePresence>
+                      className={`absolute inset-0 bg-gradient-to-br ${topic.gradient} opacity-0 group-hover:opacity-100 transition-opacity duration-300`}
+                    />
+                    <CardHeader className="relative">
+                      <CardTitle className={`flex items-center gap-3 ${isRTL ? 'flex-row-reverse' : ''}`}>
+                        <motion.div 
+                          className={`p-2 rounded-xl bg-background/80 backdrop-blur-sm shadow-sm ${topic.color} group-hover:scale-110 transition-transform duration-300`}
+                          whileHover={{ rotate: [0, -10, 10, -10, 0] }}
+                          transition={{ duration: 0.5 }}
+                        >
+                          <TopicIcon className="w-5 h-5" />
+                        </motion.div>
+                        <span className="group-hover:text-primary transition-colors duration-300">
+                          {t(`practice.topics.${topic.id}.title`)}
+                        </span>
+                      </CardTitle>
+                      <CardDescription className={isRTL ? 'text-right' : 'text-left'}>
+                        {t(`practice.topics.${topic.id}.description`)}
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="relative pb-4">
+                      <motion.div
+                        animate={{ 
+                          x: isHovered ? (isRTL ? -5 : 5) : 0,
+                          transition: { type: "spring", stiffness: 300, damping: 10 }
+                        }}
+                        className={`flex items-center gap-1 text-sm ${topic.color} ${isRTL ? 'flex-row-reverse' : ''}`}
+                      >
+                        <span>{t('practice.start')}</span>
+                        <ChevronRight className={`w-4 h-4 ${isRTL ? 'rotate-180' : ''} group-hover:translate-x-1 transition-transform duration-300`} />
+                      </motion.div>
+                    </CardContent>
+                  </Card>
+                </motion.div>
+              );
+            })}
+          </AnimatePresence>
+        </motion.div>
       </motion.div>
-    </motion.div>
+    </div>
   );
 }

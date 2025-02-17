@@ -90,7 +90,7 @@ function LevelsPage() {
                 {studentData?.mathLevel?.toFixed(1) || '1.0'}
               </div>
             </div>
-            <Progress value={(studentData?.mathLevel || 1) * 10} className="h-2" />
+            <Progress value={(studentData?.mathLevel || 1) * 20} className="h-2" />
           </Card>
 
           {/* Topic Levels */}
@@ -108,7 +108,7 @@ function LevelsPage() {
                   <p className="text-sm text-muted-foreground mb-3">
                     {t(`practice.topics.${topic}.description`)}
                   </p>
-                  <Progress value={Number(level) * 10} className="h-1.5" />
+                  <Progress value={Number(level) * 20} className="h-1.5" />
                 </Card>
               ))}
             </div>

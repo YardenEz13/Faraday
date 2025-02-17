@@ -4,6 +4,7 @@ import User from "../models/User.js";
 import { QUESTIONS_BANK } from '../data/questionsBank.js';
 import Class from "../models/Class.js";
 import { generateQuestions } from '../services/questionGenerator.js';
+import { QuestionService } from '../services/questionService.js';
 
 // Helper function to generate questions based on student level
 const generateQuestionsForLevel = (topic, level, count = 5) => {
@@ -40,57 +41,38 @@ const generateQuestionsForLevel = (topic, level, count = 5) => {
 
 export const createAssignment = async (req, res) => {
   try {
-    const teacherId = req.user.id;
-    const { title, topic, classId, dueDate } = req.body;
+    const { topic, title, dueDate, studentId, classId, isAdaptive = true } = req.body;
+    const { userId: teacherId } = req;
 
-    // Validate required fields
-    if (!title || !topic || !classId) {
-      return res.status(400).json({ error: 'Missing required fields' });
+    // Get student's current level
+    const student = await User.findById(studentId);
+    if (!student) {
+      return res.status(404).json({ error: 'Student not found' });
     }
 
-    // Find the class and verify it belongs to the teacher
-    const classDoc = await Class.findOne({ _id: classId, teacherId });
-    if (!classDoc) {
-      return res.status(404).json({ error: 'Class not found or unauthorized' });
-    }
+    const studentLevel = student.topicLevels?.[topic] || 1;
+    
+    // Generate questions based on student's level
+    const questions = await QuestionService.generateQuestionsForLevel(topic, studentLevel);
 
-    // Get all students in the class
-    const students = await User.find({ 
-      _id: { $in: classDoc.students },
-      role: 'student'
+    const assignment = new Assignment({
+      title,
+      topic,
+      teacherId,
+      student: studentId,
+      classId,
+      questions,
+      dueDate,
+      isAdaptive,
+      studentLevel,
+      status: 'active'
     });
 
-    if (students.length === 0) {
-      return res.status(400).json({ error: 'No students found in this class' });
-    }
-
-    // Create assignments for all students in the class
-    const assignments = await Promise.all(students.map(async (student) => {
-      const questions = await generateQuestions(topic, student.mathLevel || 1);
-      
-      return new Assignment({
-        title,
-        topic,
-        teacherId,
-        student: student._id,
-        classId,
-        questions,
-        dueDate: dueDate || undefined,
-        status: 'active',
-        isLate: false
-      });
-    }));
-
-    // Save all assignments
-    await Assignment.insertMany(assignments);
-
-    return res.status(201).json({ 
-      message: `Created ${assignments.length} assignments successfully`,
-      count: assignments.length
-    });
+    await assignment.save();
+    res.status(201).json(assignment);
   } catch (error) {
-    console.error('Error creating assignments:', error);
-    return res.status(500).json({ error: 'Failed to create assignments' });
+    console.error('Error creating assignment:', error);
+    res.status(500).json({ error: 'Error creating assignment' });
   }
 };
 
@@ -99,11 +81,28 @@ export const getAssignments = async (req, res) => {
     const { role, id } = req.user;
     let assignments;
 
+    // Get the current user's mathLevel
+    const user = await User.findById(id);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
     if (role === 'teacher') {
       assignments = await Assignment.find({ teacher: id })
-        .populate('student', 'username email')
+        .populate('student', 'username email mathLevel')
         .sort('-createdAt');
     } else {
+      // For students, update studentLevel to match current mathLevel
+      await Assignment.updateMany(
+        { 
+          student: id,
+          status: { $in: ['active', 'submitted'] }
+        },
+        { 
+          $set: { studentLevel: user.mathLevel }
+        }
+      );
+
       assignments = await Assignment.find({ student: id })
         .populate('teacher', 'username email')
         .sort('-createdAt');
@@ -138,6 +137,9 @@ export const submitAssignment = async (req, res) => {
     // Update assignment
     assignment.studentAnswer = answer;
     assignment.isCompleted = true;
+    assignment.studentLevel = req.user.mathLevel;
+    assignment.status = 'submitted';
+    assignment.submittedAt = new Date();
     await assignment.save();
 
     res.json({ message: 'Assignment submitted successfully' });
@@ -185,7 +187,9 @@ export const createAdaptiveAssignment = async (req, res) => {
           _questionData: q._questionData
         })),
         currentQuestionIndex: 0,
-        isAdaptive: true
+        isAdaptive: true,
+        studentLevel: student.mathLevel,
+        status: 'active'
       });
 
       await assignment.save();
@@ -216,7 +220,9 @@ export const createAdaptiveAssignment = async (req, res) => {
       classId,
       dueDate: dueDate || undefined,
       isAdaptive: true,
-      studentAssignments: []
+      studentAssignments: [],
+      studentLevel: classDoc.students[0].mathLevel,
+      status: 'active'
     });
 
     // Generate individual assignments for each student
@@ -237,7 +243,8 @@ export const createAdaptiveAssignment = async (req, res) => {
           solution: q.solution,
           _questionData: q._questionData
         })),
-        currentQuestionIndex: 0
+        currentQuestionIndex: 0,
+        studentLevel: student.mathLevel
       });
     }
 
@@ -266,101 +273,65 @@ export const submitAssignmentAnswer = async (req, res) => {
   try {
     const { assignmentId } = req.params;
     const { answer } = req.body;
-    const userId = req.user.id;
-
+    const student = await User.findById(req.user.id);
     const assignment = await Assignment.findById(assignmentId);
-    if (!assignment) {
-      return res.status(404).json({ error: 'שיעורי בית לא נמצאו' });
+
+    if (!assignment || !student) {
+      return res.status(404).json({ error: 'Assignment or student not found' });
     }
 
-    // Handle individual assignment
-    if (assignment.student?.toString() === userId) {
-      const currentQuestion = assignment.questions[assignment.currentQuestionIndex];
-      if (!currentQuestion) {
-        return res.status(400).json({ error: 'לא נמצאה שאלה נוכחית' });
-      }
+    const currentQuestion = assignment.questions[assignment.currentQuestionIndex];
+    const isCorrect = checkAnswer(answer, currentQuestion.solution);
 
-      const isCorrect = checkAnswer(answer, currentQuestion.solution.final_answers);
-
-      if (isCorrect) {
-        assignment.currentQuestionIndex += 1;
-        assignment.correctAnswers = (assignment.correctAnswers || 0) + 1;
-        
-        if (assignment.currentQuestionIndex >= assignment.questions.length) {
-          assignment.isCompleted = true;
-          assignment.completedAt = new Date();
-        }
-      }
-
-      await assignment.save();
-
-      // Update student's topic level if completed
-      if (assignment.isCompleted) {
-        const student = await User.findById(userId);
-        const successRate = assignment.correctAnswers / assignment.questions.length;
-        await student.updateTopicLevel(assignment.topic, successRate >= 0.7);
-      }
-
-      return res.json({
-        success: isCorrect,
-        isCompleted: assignment.isCompleted,
-        nextQuestion: !assignment.isCompleted ? {
-          index: assignment.currentQuestionIndex,
-          total: assignment.questions.length,
-          ...assignment.questions[assignment.currentQuestionIndex]
-        } : null,
-        solution: !isCorrect ? currentQuestion.solution : null
-      });
+    // Update assignment stats
+    if (isCorrect) {
+      assignment.correctAnswers += 1;
     }
 
-    // Handle class assignment
-    const studentAssignment = assignment.studentAssignments?.find(
-      sa => sa.student.toString() === userId
+    // Calculate new level using the same logic as practice
+    const currentLevel = student.topicLevels?.[assignment.topic] || 1;
+    const { newLevel, levelChange } = QuestionService.calculateNewLevel(
+      currentLevel,
+      isCorrect,
+      isCorrect ? student.consecutiveCorrect : 0,
+      !isCorrect ? student.consecutiveIncorrect : 0
     );
 
-    if (!studentAssignment) {
-      return res.status(404).json({ error: 'לא נמצאו שיעורי בית עבור התלמיד' });
-    }
-
-    const currentQuestion = studentAssignment.questions[studentAssignment.currentQuestionIndex];
-    if (!currentQuestion) {
-      return res.status(400).json({ error: 'לא נמצאה שאלה נוכחית' });
-    }
-
-    const isCorrect = checkAnswer(answer, currentQuestion.solution.final_answers);
-
+    // Update student's topic level
+    if (!student.topicLevels) student.topicLevels = {};
+    student.topicLevels[assignment.topic] = newLevel;
+    
+    // Update consecutive counters
     if (isCorrect) {
-      studentAssignment.currentQuestionIndex += 1;
-      studentAssignment.correctAnswers = (studentAssignment.correctAnswers || 0) + 1;
-      
-      if (studentAssignment.currentQuestionIndex >= studentAssignment.questions.length) {
-        studentAssignment.isCompleted = true;
-        studentAssignment.completedAt = new Date();
-      }
+      student.consecutiveCorrect = (student.consecutiveCorrect || 0) + 1;
+      student.consecutiveIncorrect = 0;
+    } else {
+      student.consecutiveIncorrect = (student.consecutiveIncorrect || 0) + 1;
+      student.consecutiveCorrect = 0;
     }
 
+    // Update overall math level
+    const topicLevels = Object.values(student.topicLevels);
+    if (topicLevels.length > 0) {
+      student.mathLevel = parseFloat((topicLevels.reduce((a, b) => a + b, 0) / topicLevels.length).toFixed(2));
+    }
+
+    // Save changes
+    await student.save();
+    assignment.studentLevel = newLevel;
     await assignment.save();
 
-    // Update student's topic level if completed
-    if (studentAssignment.isCompleted) {
-      const student = await User.findById(userId);
-      const successRate = studentAssignment.correctAnswers / studentAssignment.questions.length;
-      await student.updateTopicLevel(assignment.topic, successRate >= 0.7);
-    }
-
-    return res.json({
-      success: isCorrect,
-      isCompleted: studentAssignment.isCompleted,
-      nextQuestion: !studentAssignment.isCompleted ? {
-        index: studentAssignment.currentQuestionIndex,
-        total: studentAssignment.questions.length,
-        ...studentAssignment.questions[studentAssignment.currentQuestionIndex]
-      } : null,
-      solution: !isCorrect ? currentQuestion.solution : null
+    res.json({
+      isCorrect,
+      newLevel,
+      levelChange,
+      mathLevel: student.mathLevel,
+      message: `Level ${levelChange >= 0 ? 'increased' : 'decreased'} by ${Math.abs(levelChange)}`
     });
+
   } catch (error) {
     console.error('Error submitting assignment answer:', error);
-    return res.status(500).json({ error: 'שגיאה בשליחת התשובה' });
+    res.status(500).json({ error: 'Error processing answer' });
   }
 };
 
@@ -382,8 +353,17 @@ const checkAnswer = (userAnswer, correctAnswer) => {
       const correctValue = normalizedCorrectAnswer.probability || normalizedCorrectAnswer.x;
       const userValue = normalizedUserAnswer.probability || normalizedUserAnswer.x;
       
+      // Convert both values to numbers with 3 decimal places
       const roundedCorrect = Math.round(correctValue * 1000) / 1000;
       const roundedUser = Math.round(userValue * 1000) / 1000;
+
+      console.log('Probability comparison:', {
+        correctValue,
+        userValue,
+        roundedCorrect,
+        roundedUser,
+        tolerance
+      });
 
       return Math.abs(roundedCorrect - roundedUser) <= tolerance;
     }

@@ -171,7 +171,7 @@ router.get('/:id/question', authMiddleware, async (req, res) => {
     const assignment = await Assignment.findOne({
       _id: assignmentId,
       $or: [
-        { studentId: userId },
+        { student: userId },
         { teacherId: userId }
       ]
     });
@@ -183,7 +183,17 @@ router.get('/:id/question', authMiddleware, async (req, res) => {
 
     // Get the current question based on currentQuestionIndex
     const currentQuestionIndex = assignment.currentQuestionIndex || 0;
-    const currentQuestion = assignment.questions[currentQuestionIndex];
+    let currentQuestion = assignment.questions[currentQuestionIndex];
+
+    // For adaptive assignments, generate a new question if needed
+    if (assignment.isAdaptive && !currentQuestion) {
+      // Generate new question based on student's current level
+      currentQuestion = await generateMathQuestion(assignment.topic, assignment.studentLevel);
+      
+      // Add the question to the assignment
+      assignment.questions.push(currentQuestion);
+      await assignment.save();
+    }
     
     if (!currentQuestion) {
       return res.status(404).json({ message: 'No questions found in this assignment' });
@@ -201,21 +211,17 @@ router.get('/:id/question', authMiddleware, async (req, res) => {
       });
     }
 
-    // For active assignments and students, return question without solution
-    res.json({
-      question: {
-        title: currentQuestion.title,
-        description: currentQuestion.description,
-        equation: currentQuestion.equation,
-        hints: currentQuestion.hints,
-        answerFormat: "הכנס את תשובתך",
-        answerPlaceholder: "למשל: x=2, y=3"
-      },
+    // For active assignments, return question without solution
+    const { solution, ...questionWithoutSolution } = currentQuestion;
+    return res.json({
+      question: questionWithoutSolution,
       currentQuestionIndex,
       totalQuestions: assignment.questions.length,
       studentLevel: assignment.studentLevel || 1,
-      isCompleted: false
+      isCompleted: false,
+      canSubmitEarly: assignment.canSubmitEarlyNow?.()
     });
+
   } catch (error) {
     console.error('Error fetching question:', error);
     res.status(500).json({ message: 'Failed to fetch question' });
@@ -255,14 +261,15 @@ router.post('/:id/answer', authMiddleware, async (req, res) => {
       return res.status(400).json({ message: 'No solution found for this question' });
     }
 
-    // Parse the solution string into an object
-    let parsedSolution;
-    try {
-      parsedSolution = JSON.parse(currentQuestion.solution);
-      console.log('Parsed solution:', parsedSolution);
-    } catch (error) {
-      console.error('Error parsing solution:', error);
-      return res.status(400).json({ message: 'Invalid solution format' });
+    // Parse the solution if needed
+    let parsedSolution = currentQuestion.solution;
+    if (typeof parsedSolution === 'string') {
+      try {
+        parsedSolution = JSON.parse(currentQuestion.solution);
+      } catch (error) {
+        console.error('Error parsing solution:', error);
+        return res.status(400).json({ message: 'Invalid solution format' });
+      }
     }
 
     if (!parsedSolution?.final_answers) {
@@ -279,32 +286,93 @@ router.post('/:id/answer', authMiddleware, async (req, res) => {
     });
 
     // Update the question with the student's answer and correctness
-    const questionUpdates = {
-      [`questions.${currentQuestionIndex}.studentAnswer`]: answer,
-      [`questions.${currentQuestionIndex}.isCorrect`]: isCorrect
-    };
+    assignment.questions[currentQuestionIndex].studentAnswer = answer;
+    assignment.questions[currentQuestionIndex].isCorrect = isCorrect;
 
-    // If answer is correct, update assignment status
+    // If answer is correct, update progress
     if (isCorrect) {
-      questionUpdates.status = 'submitted';
-      questionUpdates.submittedAt = new Date();
-      questionUpdates.isCompleted = true;
+      assignment.correctAnswers += 1;
+      assignment.currentQuestionIndex += 1;
+
+      // Update student's topic level if adaptive
+      if (assignment.isAdaptive) {
+        const student = await User.findById(userId);
+        const successRate = assignment.correctAnswers / (currentQuestionIndex + 1);
+        
+        // More dynamic level adjustment based on performance
+        if (!student.topicLevels) student.topicLevels = {};
+        
+        let currentLevel = student.topicLevels[assignment.topic] || 1;
+        
+        if (isCorrect) {
+          // Increase level more aggressively for consistent correct answers
+          if (successRate >= 0.8) {
+            currentLevel = Math.min(5, currentLevel + 0.5);
+          } else if (successRate >= 0.6) {
+            currentLevel = Math.min(5, currentLevel + 0.25);
+          }
+        } else {
+          // Decrease level if struggling
+          if (successRate < 0.5) {
+            currentLevel = Math.max(1, currentLevel - 0.25);
+          }
+        }
+        
+        student.topicLevels[assignment.topic] = currentLevel;
+        assignment.studentLevel = currentLevel;
+        
+        await student.save();
+        
+        // Generate next question based on new level if needed
+        if (assignment.currentQuestionIndex >= assignment.questions.length) {
+          const nextQuestion = await generateMathQuestion(assignment.topic, currentLevel);
+          assignment.questions.push(nextQuestion);
+        }
+      }
+
+      // Check if assignment can be completed
+      const canComplete = assignment.currentQuestionIndex >= assignment.minQuestionsRequired && 
+                         (assignment.correctAnswers / assignment.currentQuestionIndex) >= 0.7;
+
+      if (canComplete) {
+        assignment.status = 'submitted';
+        assignment.submittedAt = new Date();
+        assignment.isCompleted = true;
+        assignment.grade = Math.round((assignment.correctAnswers / assignment.currentQuestionIndex) * 100);
+      }
     }
 
-    // Update the assignment
-    const updatedAssignment = await Assignment.findByIdAndUpdate(
-      assignmentId,
-      { $set: questionUpdates },
-      { new: true }
-    );
+    await assignment.save();
 
-    res.json({
+    // Prepare response
+    const response = {
       isCorrect,
-      isCompleted: updatedAssignment.isCompleted,
+      isCompleted: assignment.isCompleted,
       message: isCorrect ? 'Correct answer!' : 'Incorrect answer, try again',
       solution: isCorrect ? parsedSolution : null,
-      nextQuestion: null
-    });
+      canSubmitEarly: !assignment.isCompleted && 
+                     assignment.currentQuestionIndex >= assignment.minQuestionsRequired && 
+                     (assignment.correctAnswers / assignment.currentQuestionIndex) >= 0.7,
+      progress: {
+        currentQuestion: currentQuestionIndex + 1,
+        totalQuestions: Math.max(assignment.minQuestionsRequired, assignment.questions.length),
+        correctAnswers: assignment.correctAnswers,
+        grade: Math.round((assignment.correctAnswers / assignment.currentQuestionIndex) * 100)
+      }
+    };
+
+    // Add next question if available and not completed
+    if (!assignment.isCompleted && assignment.questions[assignment.currentQuestionIndex]) {
+      const nextQuestion = assignment.questions[assignment.currentQuestionIndex];
+      response.nextQuestion = {
+        title: nextQuestion.title,
+        description: nextQuestion.description,
+        equation: nextQuestion.equation,
+        hints: nextQuestion.hints
+      };
+    }
+
+    res.json(response);
 
   } catch (error) {
     console.error('Error submitting answer:', error);
@@ -679,5 +747,60 @@ const checkAnswer = (userAnswer, correctAnswer) => {
     return false;
   }
 };
+
+// Create an adaptive assignment
+router.post('/adaptive', authMiddleware, async (req, res) => {
+  try {
+    if (req.user.role !== 'teacher') {
+      return res.status(403).json({ message: 'Only teachers can create assignments' });
+    }
+
+    const { title, topic, classId, dueDate, teacherId } = req.body;
+
+    // Validate required fields
+    if (!title || !topic || !dueDate || !classId) {
+      return res.status(400).json({ message: 'Missing required fields' });
+    }
+
+    // Verify that the teacher owns this class
+    const classDoc = await Class.findOne({ _id: classId, teacherId });
+    if (!classDoc) {
+      return res.status(404).json({ message: 'Class not found' });
+    }
+
+    // Create assignments for all students in the class
+    const assignments = await Promise.all(classDoc.students.map(async (studentId) => {
+      // Get student's current level for this topic
+      const student = await User.findById(studentId);
+      const studentLevel = student.topicLevels?.[topic] || 1;
+
+      // Generate initial question based on student's level
+      const initialQuestion = await generateMathQuestion(topic, studentLevel);
+
+      const assignment = new Assignment({
+        title,
+        topic,
+        teacherId,
+        student: studentId,
+        classId,
+        dueDate: new Date(dueDate),
+        status: 'active',
+        isAdaptive: true,
+        studentLevel,
+        minQuestionsRequired: 5,
+        questions: [initialQuestion],
+        currentQuestionIndex: 0,
+        correctAnswers: 0
+      });
+
+      return assignment.save();
+    }));
+
+    res.status(201).json(assignments);
+  } catch (error) {
+    console.error('Error creating adaptive assignment:', error);
+    res.status(500).json({ message: 'Failed to create adaptive assignment' });
+  }
+});
 
 export { router as assignmentRoutes }; 
