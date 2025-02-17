@@ -1,11 +1,11 @@
+@config "./tailwind.config.js";
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @font-face {
   font-family: 'Yarden';
-  src: url('./fonts/yarden-regular-alefalefalef.woff') format('woff'),
-       url('./fonts/yarden-regular-alefalefalef.otf') format('opentype');
+  src: url('/fonts/Yarden.woff2') format('woff2');
   font-weight: normal;
   font-style: normal;
   font-display: swap;
@@ -31,53 +31,56 @@
     --popover: 0 0% 100%;
     --popover-foreground: 222.2 84% 4.9%;
  
-    --primary: 171 76% 42%;  /* Slightly more saturated turquoise */
+    --primary: 221.2 83.2% 53.3%;
     --primary-foreground: 210 40% 98%;
  
-    --secondary: 171 30% 94%;  /* Light turquoise for better contrast */
-    --secondary-foreground: 171 60% 25%;
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
  
-    --muted: 171 20% 96%;
-    --muted-foreground: 171 30% 40%;
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
  
-    --accent: 142 76% 42%;  /* Slightly more saturated green */
-    --accent-foreground: 142 60% 25%;
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222.2 47.4% 11.2%;
  
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 40% 98%;
 
-    --border: 171 20% 88%;
-    --input: 171 20% 88%;
-    --ring: 171 76% 42%;
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 221.2 83.2% 53.3%;
  
-    --radius: 0.75rem;
+    --radius: 0.5rem;
   }
  
   .dark {
-    --background: 222.2 45% 7%;  /* Slightly lighter dark background */
+    --background: 222.2 84% 4.9%;
     --foreground: 210 40% 98%;
  
-    --card: 222.2 45% 9%;
+    --card: 222.2 84% 4.9%;
     --card-foreground: 210 40% 98%;
  
-    --popover: 222.2 45% 9%;
+    --popover: 222.2 84% 4.9%;
     --popover-foreground: 210 40% 98%;
  
-    --primary: 171 70% 45%;
-    --primary-foreground: 210 40% 98%;
+    --primary: 217.2 91.2% 59.8%;
+    --primary-foreground: 222.2 47.4% 11.2%;
  
-    --secondary: 171 40% 14%;
+    --secondary: 217.2 32.6% 17.5%;
     --secondary-foreground: 210 40% 98%;
  
-    --muted: 171 40% 14%;
-    --muted-foreground: 171 30% 70%;
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
  
-    --accent: 142 70% 45%;
+    --accent: 217.2 32.6% 17.5%;
     --accent-foreground: 210 40% 98%;
  
-    --border: 171 40% 14%;
-    --input: 171 40% 14%;
-    --ring: 171 70% 45%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 224.3 76.3% 48%;
   }
 
   /* Global font settings */
@@ -104,11 +107,7 @@
     @apply border-border;
   }
   body {
-    @apply bg-background text-foreground transition-colors duration-300;
-    background-image: 
-      radial-gradient(at 100% 100%, rgba(var(--primary) / 0.12) 0%, transparent 60%),
-      radial-gradient(at 0% 0%, rgba(var(--accent) / 0.08) 0%, transparent 60%);
-    background-attachment: fixed;
+    @apply bg-background text-foreground;
   }
 }
 
@@ -291,9 +290,5 @@
 
 /* Improve gradient backgrounds */
 body {
-  @apply bg-background text-foreground transition-colors duration-300;
-  background-image: 
-    radial-gradient(at 100% 100%, rgba(var(--primary) / 0.12) 0%, transparent 60%),
-    radial-gradient(at 0% 0%, rgba(var(--accent) / 0.08) 0%, transparent 60%);
-  background-attachment: fixed;
+  @apply bg-background text-foreground;
 } 

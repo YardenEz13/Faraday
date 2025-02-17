@@ -5,6 +5,7 @@ export default {
     "./index.html",
     "./src/**/*.{js,ts,jsx,tsx}",
   ],
+  prefix: "",
   theme: {
     extend: {
       fontFamily: {
@@ -49,98 +50,57 @@ export default {
       },
       keyframes: {
         blob: {
-          "0%": {
-            transform: "translate(0px, 0px) scale(1)",
-          },
-          "33%": {
-            transform: "translate(30px, -50px) scale(1.1)",
-          },
-          "66%": {
-            transform: "translate(-20px, 20px) scale(0.9)",
-          },
-          "100%": {
-            transform: "translate(0px, 0px) scale(1)",
-          },
+          "0%": { transform: "translate(0px, 0px) scale(1)" },
+          "33%": { transform: "translate(30px, -50px) scale(1.1)" },
+          "66%": { transform: "translate(-20px, 20px) scale(0.9)" },
+          "100%": { transform: "translate(0px, 0px) scale(1)" }
         },
         float: {
-          "0%, 100%": {
-            transform: "translateY(0)",
-          },
-          "50%": {
-            transform: "translateY(-10px)",
-          },
+          "0%, 100%": { transform: "translateY(0)" },
+          "50%": { transform: "translateY(-10px)" }
         },
         pulse: {
           "0%, 100%": {
             opacity: "1",
-            transform: "scale(1)",
+            transform: "scale(1)"
           },
           "50%": {
             opacity: "0.8",
-            transform: "scale(0.95)",
-          },
+            transform: "scale(0.95)"
+          }
         },
         shimmer: {
-          "0%": {
-            backgroundPosition: "-200% center",
-          },
-          "100%": {
-            backgroundPosition: "200% center",
-          },
+          "0%": { backgroundPosition: "-200% center" },
+          "100%": { backgroundPosition: "200% center" }
         },
         glow: {
-          "0%, 100%": {
-            boxShadow: "0 0 10px rgba(var(--primary), 0.5)",
-          },
-          "50%": {
-            boxShadow: "0 0 20px rgba(var(--primary), 0.7)",
-          },
-        },
-        bounce: {
-          "0%, 100%": {
-            transform: "translateY(-5%)",
-            animationTimingFunction: "cubic-bezier(0.8, 0, 1, 1)",
-          },
-          "50%": {
-            transform: "translateY(0)",
-            animationTimingFunction: "cubic-bezier(0, 0, 0.2, 1)",
-          },
-        },
-        "accordion-down": {
-          from: { height: "0" },
-          to: { height: "var(--radix-accordion-content-height)" },
-        },
-        "accordion-up": {
-          from: { height: "var(--radix-accordion-content-height)" },
-          to: { height: "0" },
-        },
+          "0%, 100%": { boxShadow: "0 0 10px rgba(var(--primary), 0.5)" },
+          "50%": { boxShadow: "0 0 20px rgba(var(--primary), 0.7)" }
+        }
       },
       animation: {
         blob: "blob 7s infinite",
         float: "float 3s ease-in-out infinite",
         pulse: "pulse 2s ease-in-out infinite",
         shimmer: "shimmer 2s infinite linear",
-        glow: "glow 2s ease-in-out infinite",
-        bounce: "bounce 1s infinite",
-        "accordion-down": "accordion-down 0.2s ease-out",
-        "accordion-up": "accordion-up 0.2s ease-out",
+        glow: "glow 2s ease-in-out infinite"
       },
       boxShadow: {
         glow: "0 0 15px rgba(var(--primary), 0.5)",
-        "glow-lg": "0 0 30px rgba(var(--primary), 0.5)",
+        "glow-lg": "0 0 30px rgba(var(--primary), 0.5)"
       },
       backgroundImage: {
         'gradient-radial': 'radial-gradient(var(--tw-gradient-stops))',
         'gradient-conic': 'conic-gradient(from 180deg at 50% 50%, var(--tw-gradient-stops))',
-        'gradient-shine': 'linear-gradient(45deg, transparent 25%, rgba(255,255,255,0.1) 25%, rgba(255,255,255,0.1) 50%, transparent 50%, transparent 75%, rgba(255,255,255,0.1) 75%, rgba(255,255,255,0.1))',
+        'gradient-shine': 'linear-gradient(45deg, transparent 25%, rgba(255,255,255,0.1) 25%, rgba(255,255,255,0.1) 50%, transparent 50%, transparent 75%, rgba(255,255,255,0.1) 75%, rgba(255,255,255,0.1))'
       },
       backgroundSize: {
-        'shine': '30px 30px',
-      },
-    },
+        'shine': '30px 30px'
+      }
+    }
   },
   plugins: [
     require('@tailwindcss/forms'),
-    require('tailwindcss-rtl'),
-  ],
+    require('tailwindcss-rtl')
+  ]
 }
